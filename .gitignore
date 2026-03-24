@@ -6,3 +6,5 @@ debug_chat.log
 .DS_Store
 dist/
 build/
+
+.vercel
