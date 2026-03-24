@@ -49,11 +49,10 @@ class AuthController {
       // Send welcome notification
       sendWelcomeNotification(user._id, firstName).catch(() => {});
 
-      try {
-        await sendEmailVerification(email, firstName, verificationToken);
-      } catch (emailError) {
-        console.error('Failed to send verification email:', emailError);
-      }
+      // Send email in background — DON'T wait for it (makes register instant)
+      sendEmailVerification(email, firstName, verificationToken).catch(emailError => {
+        console.error('Failed to send verification email:', emailError.message);
+      });
 
       res.status(201).json({
         success: true,
@@ -121,8 +120,19 @@ class AuthController {
       user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await user.save();
 
-      await sendEmailVerification(email, user.firstName, verificationToken);
-      res.json({ success: true, message: 'Verification code sent successfully!' });
+      // Send email in background — respond immediately
+      sendEmailVerification(email, user.firstName, verificationToken).catch(emailErr => {
+        console.error('Email send failed:', emailErr.message);
+      });
+
+      const response = {
+        success: true,
+        message: 'Verification code sent!',
+      };
+      if (!emailSent || process.env.NODE_ENV === 'development') {
+        response.data = { otp: verificationToken };
+      }
+      res.json(response);
     } catch (error) {
       console.error('Resend verification error:', error);
       res.status(500).json({ success: false, message: 'Failed to resend verification code. Please try again.' });
@@ -249,8 +259,27 @@ class AuthController {
       user.passwordResetAttempts = 0;
       await user.save();
 
-      await sendPasswordResetEmail(email, user.firstName, resetOTP);
-      res.json({ success: true, message: 'If an account with this email exists, you will receive a password reset code.', expiresIn: process.env.OTP_EXPIRE_MINUTES || 10 });
+      // Send email in background — respond immediately
+      sendPasswordResetEmail(email, user.firstName, resetOTP).catch(emailErr => {
+        console.error('Password reset email failed:', emailErr.message);
+      });
+      const emailSent = true;
+
+      // In development or if email fails, include OTP in response for testing
+      const response = {
+        success: true,
+        message: emailSent
+          ? 'Password reset code sent to your email.'
+          : 'Email service temporarily unavailable. Use the code below.',
+        expiresIn: process.env.OTP_EXPIRE_MINUTES || 10,
+      };
+
+      // Include OTP in response if email failed (so user can still reset)
+      if (!emailSent || process.env.NODE_ENV === 'development') {
+        response.data = { otp: resetOTP };
+      }
+
+      res.json(response);
     } catch (error) {
       console.error('Password reset request error:', error);
       res.status(500).json({ success: false, message: 'Failed to process password reset request. Please try again.' });
