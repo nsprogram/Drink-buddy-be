@@ -175,12 +175,44 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
+// ── Self-ping to keep Render free tier alive ──
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL;
+const SELF_PING_INTERVAL = 10 * 60 * 1000; // 10 minutes
+
+function startSelfPing() {
+  if (!RENDER_URL && process.env.NODE_ENV !== 'production') {
+    console.log('⏸️  Self-ping disabled (not production)');
+    return;
+  }
+  const pingUrl = RENDER_URL
+    ? `${RENDER_URL}/api/health`
+    : `http://localhost:${PORT}/api/health`;
+
+  console.log(`🏓 Self-ping enabled: ${pingUrl} every 10 min`);
+
+  setInterval(async () => {
+    try {
+      const https = pingUrl.startsWith('https') ? require('https') : require('http');
+      https.get(pingUrl, (res) => {
+        console.log(`🏓 Ping OK: ${res.statusCode} at ${new Date().toLocaleTimeString()}`);
+      }).on('error', (err) => {
+        console.log(`🏓 Ping failed: ${err.message}`);
+      });
+    } catch (err) {
+      console.log(`🏓 Ping error: ${err.message}`);
+    }
+  }, SELF_PING_INTERVAL);
+}
+
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 DrinkBuddy Backend running on port ${PORT}`);
     console.log(`🔌 Socket.io ready`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
+
+    // Start self-ping after server is up
+    startSelfPing();
   });
 }
 
