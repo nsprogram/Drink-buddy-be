@@ -1,0 +1,187 @@
+const express = require('express');
+const http = require('http');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+const { setupSocket } = require('./socket');
+
+// Import routes
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/user');
+const profileRoutes = require('./routes/profile');
+const sessionRoutes = require('./routes/sessionRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const storyRoutes = require('./routes/storyRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const favoriteRoutes = require('./routes/favoriteRoutes');
+const roomRoutes = require('./routes/roomRoutes');
+const callRoutes = require('./routes/callRoutes');
+
+const app = express();
+const server = http.createServer(app);
+
+// Setup Socket.io
+const io = setupSocket(server);
+app.set('io', io);
+
+console.log('-------------------------------------------');
+console.log('🚀 DRINKBUDDY BACKEND STARTING');
+console.log('📅 Time:', new Date().toISOString());
+console.log('-------------------------------------------');
+
+// Security middleware
+app.use(helmet());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'development'
+    ? true
+    : [process.env.FRONTEND_URL || 'http://localhost:3000', 'exp://localhost:8081'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  message: { success: false, message: 'Too many requests from this IP, please try again later.' }
+});
+app.use('/api/', limiter);
+
+// Logging
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan('combined'));
+}
+
+// Body parsing
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Static files
+app.use('/uploads', express.static('uploads'));
+
+// Database connection
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/drinkbuddy';
+
+const connectDB = async (retries = 3) => {
+  if (mongoose.connection.readyState >= 1) {
+    console.log('✅ MongoDB already connected (reusing connection)');
+    return;
+  }
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`🔄 MongoDB connection attempt ${i + 1}/${retries}...`);
+      console.log(`📋 URI starts with: ${mongoUri ? mongoUri.substring(0, 30) + '...' : 'MISSING!'}`);
+      await mongoose.connect(mongoUri, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+      });
+      console.log('✅ Connected to MongoDB');
+      console.log('📍 Database:', mongoose.connection.name);
+      console.log('🏠 Host:', mongoose.connection.host);
+      return;
+    } catch (err) {
+      console.error(`❌ MongoDB connection attempt ${i + 1} failed:`, err.message);
+      if (i < retries - 1) {
+        console.log(`⏳ Retrying in 3 seconds...`);
+        await new Promise(r => setTimeout(r, 3000));
+      }
+    }
+  }
+  console.error('❌ All MongoDB connection attempts failed! Auth routes will not work.');
+};
+
+// Auto-reconnect on disconnect
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ MongoDB disconnected! Attempting reconnect...');
+  setTimeout(() => connectDB(2), 5000);
+});
+
+connectDB();
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/sessions', sessionRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/stories', storyRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/rooms', roomRoutes);
+app.use('/api/calls', callRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'DrinkBuddy Backend is running',
+    timestamp: new Date().toISOString(),
+    socket: io ? 'active' : 'inactive',
+  });
+});
+
+// DB reconnect endpoint
+app.get('/api/reconnect-db', async (req, res) => {
+  try {
+    await connectDB(2);
+    const state = mongoose.connection.readyState;
+    res.json({ success: state === 1, dbState: state === 1 ? 'connected' : 'failed' });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Status/test route
+app.get('/api/test', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStateMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+  res.status(200).json({
+    success: true,
+    message: 'DrinkBuddy Backend is Running!',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    database: {
+      status: dbStateMap[dbState] || 'unknown',
+      host: mongoose.connection.host || 'unknown',
+      name: mongoose.connection.name || 'unknown'
+    },
+    vercel: {
+      region: process.env.VERCEL_REGION || 'unknown',
+      env: process.env.VERCEL_ENV || 'unknown'
+    }
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Global error:', err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!',
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+const PORT = process.env.PORT || 5000;
+
+if (require.main === module) {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 DrinkBuddy Backend running on port ${PORT}`);
+    console.log(`🔌 Socket.io ready`);
+    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
+  });
+}
+
+module.exports = app;
