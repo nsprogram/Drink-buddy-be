@@ -1,27 +1,13 @@
+const { Resend } = require('resend');
 const nodemailer = require('nodemailer');
+
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Drink Buddy <onboarding@resend.dev>';
 
 // Generate a 6-digit OTP
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-// Create transporter — try port 465 (SSL) first, fallback to 587 (STARTTLS)
-const createTransporter = () => {
-  const useSSL = process.env.EMAIL_USE_SSL === 'true' || process.env.NODE_ENV === 'production';
-
-  return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: useSSL ? 465 : (parseInt(process.env.EMAIL_PORT) || 587),
-    secure: useSSL, // true for 465 (SSL), false for 587 (STARTTLS)
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    tls: { rejectUnauthorized: false },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 15000,
-  });
 };
 
 // HTML email template
@@ -48,96 +34,101 @@ const emailTemplate = (title, body, code) => `
 </div>
 `;
 
-// Send email — returns true if sent, false if failed
-const safeSendMail = async (mailOptions) => {
+// Method 1: Send via Resend API (works on Render, fast)
+const sendViaResend = async (to, subject, html) => {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log('⚠️ Email not configured (missing EMAIL_USER/EMAIL_PASS)');
+    if (!process.env.RESEND_API_KEY) return false;
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject,
+      html,
+    });
+    if (error) {
+      console.log(`⚠️ Resend error: ${error.message}`);
       return false;
     }
-    const transporter = createTransporter();
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent to ${mailOptions.to}`);
+    console.log(`✅ [Resend] Email sent to ${to} (id: ${data?.id})`);
     return true;
   } catch (err) {
-    console.error(`❌ Email failed to ${mailOptions.to}: ${err.message}`);
-
-    // If port 465 failed, retry with port 587
-    if (err.message.includes('ECONN') || err.message.includes('timeout')) {
-      try {
-        console.log('🔄 Retrying with port 587...');
-        const fallback = nodemailer.createTransport({
-          host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-          port: 587,
-          secure: false,
-          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-          tls: { rejectUnauthorized: false },
-          connectionTimeout: 10000,
-          greetingTimeout: 10000,
-          socketTimeout: 10000,
-        });
-        await fallback.sendMail(mailOptions);
-        console.log(`✅ Email sent (fallback 587) to ${mailOptions.to}`);
-        return true;
-      } catch (e2) {
-        console.error(`❌ Fallback 587 also failed: ${e2.message}`);
-        return false;
-      }
-    }
+    console.log(`⚠️ Resend failed: ${err.message}`);
     return false;
   }
 };
 
+// Method 2: Send via Gmail SMTP (fallback — works locally, may fail on Render)
+const sendViaGmail = async (to, subject, html) => {
+  try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return false;
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 12000,
+      greetingTimeout: 12000,
+      socketTimeout: 12000,
+    });
+    await transporter.sendMail({
+      from: `"Drink Buddy" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
+    console.log(`✅ [Gmail] Email sent to ${to}`);
+    return true;
+  } catch (err) {
+    console.log(`⚠️ Gmail failed: ${err.message}`);
+    return false;
+  }
+};
+
+// Main send function — tries Resend first, then Gmail fallback
+const safeSendMail = async (to, subject, html) => {
+  // Try Resend first (works on Render via HTTPS)
+  const resendOk = await sendViaResend(to, subject, html);
+  if (resendOk) return true;
+
+  // Fallback to Gmail SMTP
+  console.log(`🔄 Falling back to Gmail SMTP for ${to}...`);
+  const gmailOk = await sendViaGmail(to, subject, html);
+  if (gmailOk) return true;
+
+  console.error(`❌ ALL email methods failed for ${to}`);
+  return false;
+};
+
 const sendEmailVerification = async (email, firstName, token) => {
-  return safeSendMail({
-    from: `"Drink Buddy" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: `${token} - Verify Your Drink Buddy Email`,
-    html: emailTemplate(
-      `Hi ${firstName}! Welcome 🎉`,
-      'Please verify your email address using the code below:',
-      token
-    ),
-  });
+  return safeSendMail(
+    email,
+    `${token} - Verify Your Drink Buddy Email`,
+    emailTemplate(`Hi ${firstName}! Welcome 🎉`, 'Please verify your email address using the code below:', token)
+  );
 };
 
 const sendLoginOTP = async (email, firstName, otp) => {
-  return safeSendMail({
-    from: `"Drink Buddy" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: `${otp} - Your Drink Buddy Login Code`,
-    html: emailTemplate(
-      `Hi ${firstName}! Your login code:`,
-      'Use this code to log in to your account. Never share this code with anyone.',
-      otp
-    ),
-  });
+  return safeSendMail(
+    email,
+    `${otp} - Your Drink Buddy Login Code`,
+    emailTemplate(`Hi ${firstName}! Your login code:`, 'Use this code to log in. Never share this code.', otp)
+  );
 };
 
 const sendPasswordResetEmail = async (email, firstName, otp) => {
-  return safeSendMail({
-    from: `"Drink Buddy" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: `${otp} - Reset Your Drink Buddy Password`,
-    html: emailTemplate(
-      `Hi ${firstName}, reset your password`,
-      'Use the code below to reset your password. This code expires in 10 minutes.',
-      otp
-    ),
-  });
+  return safeSendMail(
+    email,
+    `${otp} - Reset Your Drink Buddy Password`,
+    emailTemplate(`Hi ${firstName}, reset your password`, 'Use the code below to reset your password. Expires in 10 minutes.', otp)
+  );
 };
 
 const sendWelcomeEmail = async (email, firstName) => {
-  return safeSendMail({
-    from: `"Drink Buddy" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: 'Welcome to Drink Buddy! 🎉',
-    html: emailTemplate(
-      `Welcome, ${firstName}! 🎉`,
-      'Your email has been verified and your account is ready. Time to find your drink buddies and track your sessions responsibly!',
-      null
-    ),
-  });
+  return safeSendMail(
+    email,
+    'Welcome to Drink Buddy! 🎉',
+    emailTemplate(`Welcome, ${firstName}! 🎉`, 'Your email is verified and your account is ready!', null)
+  );
 };
 
 module.exports = {
