@@ -1,9 +1,4 @@
-const { Resend } = require('resend');
 const nodemailer = require('nodemailer');
-
-// Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Drink Buddy <onboarding@resend.dev>';
 
 // Generate a 6-digit OTP
 const generateOTP = () => {
@@ -23,111 +18,181 @@ const emailTemplate = (title, body, code) => `
     <div style="background: linear-gradient(135deg, #FF6B35, #FF8C00); color: white; font-size: 36px; font-weight: bold; text-align: center; padding: 20px; border-radius: 14px; letter-spacing: 10px; margin: 0 0 24px 0; font-family: 'Courier New', monospace;">
       ${code}
     </div>
+    <p style="color: #8A8595; font-size: 12px; text-align: center; margin: 0 0 24px 0;">
+      This code expires in 5 minutes. Do not share it with anyone.
+    </p>
     ` : ''}
     <p style="color: #4A4555; font-size: 12px; margin: 0; text-align: center;">
       If you didn't request this, you can safely ignore this email.
     </p>
   </div>
   <div style="text-align: center; padding: 16px;">
-    <p style="color: #3A3545; font-size: 10px; margin: 0;">© ${new Date().getFullYear()} Drink Buddy. All rights reserved.</p>
+    <p style="color: #3A3545; font-size: 10px; margin: 0;">&copy; ${new Date().getFullYear()} Drink Buddy. All rights reserved.</p>
   </div>
 </div>
 `;
 
-// Method 1: Send via Resend API (works on Render, fast)
-const sendViaResend = async (to, subject, html) => {
-  try {
-    if (!process.env.RESEND_API_KEY) return false;
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: [to],
-      subject,
-      html,
-    });
-    if (error) {
-      console.log(`⚠️ Resend error: ${error.message}`);
-      return false;
+// ── Create Nodemailer transporter ──
+// Try multiple configurations until one works
+let cachedTransporter = null;
+
+const createTransporter = async () => {
+  if (cachedTransporter) return cachedTransporter;
+
+  const configs = [
+    // Config 1: Gmail with service shortcut (best for local + some cloud)
+    {
+      name: 'Gmail Service',
+      config: {
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      },
+    },
+    // Config 2: Gmail with SSL port 465
+    {
+      name: 'Gmail SSL 465',
+      config: {
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        tls: { rejectUnauthorized: false },
+      },
+    },
+    // Config 3: Gmail with TLS port 587
+    {
+      name: 'Gmail TLS 587',
+      config: {
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        tls: { rejectUnauthorized: false },
+      },
+    },
+  ];
+
+  for (const { name, config } of configs) {
+    try {
+      const t = nodemailer.createTransport({
+        ...config,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+      });
+      await t.verify();
+      console.log(`✅ Email transporter ready: ${name}`);
+      cachedTransporter = t;
+      return t;
+    } catch (err) {
+      console.log(`⚠️ ${name} failed: ${err.message}`);
     }
-    console.log(`✅ [Resend] Email sent to ${to} (id: ${data?.id})`);
-    return true;
-  } catch (err) {
-    console.log(`⚠️ Resend failed: ${err.message}`);
-    return false;
   }
+
+  console.error('❌ All email transporter configs failed');
+  return null;
 };
 
-// Method 2: Send via Gmail SMTP (fallback — works locally, may fail on Render)
-const sendViaGmail = async (to, subject, html) => {
+// ── Send email function ──
+const sendMail = async (to, subject, html) => {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return false;
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 12000,
-      greetingTimeout: 12000,
-      socketTimeout: 12000,
-    });
-    await transporter.sendMail({
-      from: `"Drink Buddy" <${process.env.EMAIL_USER}>`,
+    const transporter = await createTransporter();
+    if (!transporter) {
+      // Last resort: create fresh transporter without verify
+      console.log('🔄 Attempting direct send without verify...');
+      const directTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        connectionTimeout: 15000,
+        socketTimeout: 20000,
+      });
+
+      const info = await directTransporter.sendMail({
+        from: `"Drink Buddy 🍷" <${process.env.EMAIL_USER}>`,
+        to,
+        subject,
+        html,
+      });
+      console.log(`✅ Email sent to ${to} (direct) - MessageID: ${info.messageId}`);
+      return true;
+    }
+
+    const info = await transporter.sendMail({
+      from: `"Drink Buddy 🍷" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       html,
     });
-    console.log(`✅ [Gmail] Email sent to ${to}`);
+    console.log(`✅ Email sent to ${to} - MessageID: ${info.messageId}`);
     return true;
   } catch (err) {
-    console.log(`⚠️ Gmail failed: ${err.message}`);
+    console.error(`❌ Email send failed to ${to}: ${err.message}`);
+
+    // Reset cached transporter so next attempt tries fresh
+    cachedTransporter = null;
+
     return false;
   }
 };
 
-// Main send function — tries Resend first, then Gmail fallback
-const safeSendMail = async (to, subject, html) => {
-  // Try Resend first (works on Render via HTTPS)
-  const resendOk = await sendViaResend(to, subject, html);
-  if (resendOk) return true;
-
-  // Fallback to Gmail SMTP
-  console.log(`🔄 Falling back to Gmail SMTP for ${to}...`);
-  const gmailOk = await sendViaGmail(to, subject, html);
-  if (gmailOk) return true;
-
-  console.error(`❌ ALL email methods failed for ${to}`);
-  return false;
-};
-
-const sendEmailVerification = async (email, firstName, token) => {
-  return safeSendMail(
+// ── Email sending functions ──
+const sendEmailVerification = async (email, firstName, otp) => {
+  return sendMail(
     email,
-    `${token} - Verify Your Drink Buddy Email`,
-    emailTemplate(`Hi ${firstName}! Welcome 🎉`, 'Please verify your email address using the code below:', token)
+    `${otp} - Verify Your Email | Drink Buddy`,
+    emailTemplate(
+      `Welcome, ${firstName}! 🎉`,
+      'Please verify your email address using the code below to get started:',
+      otp
+    )
   );
 };
 
 const sendLoginOTP = async (email, firstName, otp) => {
-  return safeSendMail(
+  return sendMail(
     email,
-    `${otp} - Your Drink Buddy Login Code`,
-    emailTemplate(`Hi ${firstName}! Your login code:`, 'Use this code to log in. Never share this code.', otp)
+    `${otp} - Your Login Code | Drink Buddy`,
+    emailTemplate(
+      `Hi ${firstName}!`,
+      'Use this code to log in to your account. Never share this code with anyone.',
+      otp
+    )
   );
 };
 
 const sendPasswordResetEmail = async (email, firstName, otp) => {
-  return safeSendMail(
+  return sendMail(
     email,
-    `${otp} - Reset Your Drink Buddy Password`,
-    emailTemplate(`Hi ${firstName}, reset your password`, 'Use the code below to reset your password. Expires in 10 minutes.', otp)
+    `${otp} - Reset Your Password | Drink Buddy`,
+    emailTemplate(
+      `Hi ${firstName}`,
+      'We received a request to reset your password. Use the code below:',
+      otp
+    )
   );
 };
 
 const sendWelcomeEmail = async (email, firstName) => {
-  return safeSendMail(
+  return sendMail(
     email,
-    'Welcome to Drink Buddy! 🎉',
-    emailTemplate(`Welcome, ${firstName}! 🎉`, 'Your email is verified and your account is ready!', null)
+    'Welcome to Drink Buddy! 🍷🎉',
+    emailTemplate(
+      `Welcome aboard, ${firstName}! 🎉`,
+      'Your email is verified and your account is ready. Start tracking your drinks responsibly!',
+      null
+    )
   );
 };
 
