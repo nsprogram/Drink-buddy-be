@@ -49,15 +49,22 @@ class AuthController {
       // Send welcome notification
       sendWelcomeNotification(user._id, firstName).catch(() => {});
 
-      // Send email in background — DON'T wait for it (makes register instant)
-      sendEmailVerification(email, firstName, verificationToken).catch(emailError => {
-        console.error('Failed to send verification email:', emailError.message);
-      });
+      // Try sending email (may fail on Render — SMTP blocked)
+      const emailSent = await sendEmailVerification(email, firstName, verificationToken);
 
       res.status(201).json({
         success: true,
-        message: 'Registration successful! Please check your email for verification code.',
-        data: { userId: user._id, email: user.email, firstName: user.firstName, lastName: user.lastName, requiresEmailVerification: true }
+        message: emailSent
+          ? 'Registration successful! Check your email for verification code.'
+          : 'Registration successful! Use the verification code shown below.',
+        data: {
+          userId: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          requiresEmailVerification: true,
+          otp: verificationToken, // Always include OTP as fallback
+        }
       });
     } catch (error) {
       console.error('Registration error:', error);
@@ -120,18 +127,21 @@ class AuthController {
       user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await user.save();
 
-      // Send email in background — respond immediately
-      sendEmailVerification(email, user.firstName, verificationToken).catch(emailErr => {
+      // Send email — but don't block the response
+      let emailSent = false;
+      try {
+        await sendEmailVerification(email, user.firstName, verificationToken);
+        emailSent = true;
+      } catch (emailErr) {
         console.error('Email send failed:', emailErr.message);
-      });
+      }
 
       const response = {
         success: true,
-        message: 'Verification code sent!',
+        message: emailSent ? 'Verification code sent to your email!' : 'Verification code generated. Check app for code.',
       };
-      if (!emailSent || process.env.NODE_ENV === 'development') {
-        response.data = { otp: verificationToken };
-      }
+      // Always include OTP in response so app can show it if email fails
+      response.data = { otp: verificationToken };
       res.json(response);
     } catch (error) {
       console.error('Resend verification error:', error);
@@ -152,6 +162,36 @@ class AuthController {
       if (!isPasswordValid) {
         await user.incLoginAttempts();
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      }
+
+      // Block login if email not verified
+      if (!user.isEmailVerified) {
+        // Only generate new OTP if existing one expired or doesn't exist
+        const existingUser = await User.findById(user._id).select('+emailVerificationToken +emailVerificationExpires');
+        let verificationToken;
+
+        if (existingUser.emailVerificationToken && existingUser.emailVerificationExpires > Date.now()) {
+          // Use existing valid OTP
+          verificationToken = existingUser.emailVerificationToken;
+        } else {
+          // Generate new OTP
+          verificationToken = generateOTP();
+          existingUser.emailVerificationToken = verificationToken;
+          existingUser.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          await existingUser.save();
+        }
+
+        // Try sending email
+        sendEmailVerification(user.email, user.firstName, verificationToken).catch(e => {
+          console.error('Failed to send verification email:', e.message);
+        });
+
+        return res.status(403).json({
+          success: false,
+          message: 'Please verify your email first.',
+          requiresVerification: true,
+          data: { email: user.email, otp: verificationToken }
+        });
       }
 
       if (user.loginAttempts > 0) await user.resetLoginAttempts();
