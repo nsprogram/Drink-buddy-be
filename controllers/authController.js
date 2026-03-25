@@ -23,7 +23,6 @@ class AuthController {
         return res.status(400).json({ success: false, message: 'User already exists with this email address' });
       }
 
-      // Compute age from dateOfBirth
       let computedAge;
       if (dateOfBirth) {
         const dob = new Date(dateOfBirth);
@@ -46,14 +45,11 @@ class AuthController {
 
       await user.save();
 
-      // Send welcome notification
+      // Fire-and-forget — don't await, respond immediately
       sendWelcomeNotification(user._id, firstName).catch(() => {});
-
-      // Send verification email
-      const emailSent = await sendEmailVerification(email, firstName, verificationToken);
-      if (!emailSent) {
-        console.error('WARNING: Verification email failed to send for', email);
-      }
+      sendEmailVerification(email, firstName, verificationToken).catch(e => {
+        console.error('WARNING: Verification email failed for', email, e.message || '');
+      });
 
       res.status(201).json({
         success: true,
@@ -95,7 +91,8 @@ class AuthController {
       user.emailVerificationExpires = undefined;
       await user.save();
 
-      try { await sendWelcomeEmail(email, user.firstName); } catch (e) { console.error(e); }
+      // Fire-and-forget
+      sendWelcomeEmail(email, user.firstName).catch(() => {});
 
       const tokens = generateTokens(user);
       user.refreshTokens = user.refreshTokens || [];
@@ -127,17 +124,15 @@ class AuthController {
       user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await user.save();
 
-      // Send verification email
-      const emailSent = await sendEmailVerification(email, user.firstName, verificationToken);
-      if (!emailSent) {
+      // Fire-and-forget
+      sendEmailVerification(email, user.firstName, verificationToken).catch(e => {
         console.error('WARNING: Resend verification email failed for', email);
-      }
+      });
 
-      const response = {
+      res.json({
         success: true,
         message: 'Verification code sent to your email!',
-      };
-      res.json(response);
+      });
     } catch (error) {
       console.error('Resend verification error:', error);
       res.status(500).json({ success: false, message: 'Failed to resend verification code. Please try again.' });
@@ -161,23 +156,22 @@ class AuthController {
 
       // Block login if email not verified
       if (!user.isEmailVerified) {
-        // Only generate new OTP if existing one expired or doesn't exist
         const existingUser = await User.findById(user._id).select('+emailVerificationToken +emailVerificationExpires');
         let verificationToken;
 
         if (existingUser.emailVerificationToken && existingUser.emailVerificationExpires > Date.now()) {
-          // Use existing valid OTP
           verificationToken = existingUser.emailVerificationToken;
         } else {
-          // Generate new OTP
           verificationToken = generateOTP();
           existingUser.emailVerificationToken = verificationToken;
           existingUser.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
           await existingUser.save();
         }
 
-        // Send verification email
-        await sendEmailVerification(user.email, user.firstName, verificationToken);
+        // Fire-and-forget — respond immediately, don't wait for email
+        sendEmailVerification(user.email, user.firstName, verificationToken).catch(e => {
+          console.error('WARNING: Login verification email failed for', user.email);
+        });
 
         return res.status(403).json({
           success: false,
@@ -207,7 +201,6 @@ class AuthController {
     } catch (error) {
       console.error('Login error:', error.message || error);
       if (error.message?.includes('secretOrPrivateKey')) {
-        console.error('JWT_SECRET or JWT_REFRESH_SECRET is missing from environment variables!');
         return res.status(500).json({ success: false, message: 'Server configuration error. Contact support.' });
       }
       res.status(500).json({ success: false, message: 'Server error. Please try again in a moment.' });
@@ -218,62 +211,20 @@ class AuthController {
     try {
       const { email } = req.body;
       const user = await User.findOne({ email });
-      if (!user) return res.status(404).json({ success: false, message: 'No account found with this email address' });
-      if (user.isBlocked) return res.status(403).json({ success: false, message: 'Account is blocked. Please contact support.' });
-
-      const otp = generateOTP();
-      user.loginOTP = { code: otp, expires: new Date(Date.now() + (process.env.OTP_EXPIRE_MINUTES || 10) * 60 * 1000), attempts: 0 };
-      await user.save();
-
-      await sendLoginOTP(email, user.firstName, otp);
-      res.json({ success: true, message: 'Login code sent to your email address', expiresIn: process.env.OTP_EXPIRE_MINUTES || 10 });
-    } catch (error) {
-      console.error('OTP login request error:', error);
-      res.status(500).json({ success: false, message: 'Failed to send login code. Please try again.' });
-    }
-  }
-
-  static async verifyLoginOTP(req, res) {
-    try {
-      const { email, otp } = req.body;
-      const user = await User.findOne({ email });
       if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-      if (!user.loginOTP || !user.loginOTP.code || user.loginOTP.expires < Date.now()) {
-        return res.status(400).json({ success: false, message: 'Invalid or expired login code' });
-      }
-
-      if (user.loginOTP.attempts >= 3) {
-        user.loginOTP = undefined;
-        await user.save();
-        return res.status(429).json({ success: false, message: 'Too many failed attempts. Please request a new login code.' });
-      }
-
-      if (user.loginOTP.code !== otp) {
-        user.loginOTP.attempts += 1;
-        await user.save();
-        return res.status(400).json({ success: false, message: 'Invalid login code', attemptsRemaining: 3 - user.loginOTP.attempts });
-      }
-
-      user.loginOTP = undefined;
-      user.lastLogin = new Date();
-      const tokens = generateTokens(user);
-      user.refreshTokens = user.refreshTokens || [];
-      if (user.refreshTokens.length >= 5) user.refreshTokens.shift();
-      user.refreshTokens.push({ token: tokens.refreshToken, device: req.headers['user-agent'] || 'Unknown', createdAt: new Date() });
+      const otp = generateOTP();
+      user.loginOTP = otp;
+      user.loginOTPExpires = new Date(Date.now() + 5 * 60 * 1000);
       await user.save();
 
-      res.json({
-        success: true,
-        message: 'Login successful!',
-        data: {
-          user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: user.isEmailVerified, profileImage: user.profileImage, coverImage: user.coverImage, age: user.age, location: user.location, bio: user.bio },
-          ...tokens
-        }
-      });
+      // Fire-and-forget
+      sendLoginOTP(email, user.firstName, otp).catch(() => {});
+
+      res.json({ success: true, message: 'Login OTP sent to your email' });
     } catch (error) {
-      console.error('OTP verification error:', error);
-      res.status(500).json({ success: false, message: 'Login verification failed. Please try again.' });
+      console.error('Request login OTP error:', error);
+      res.status(500).json({ success: false, message: 'Failed to send OTP' });
     }
   }
 
@@ -282,134 +233,112 @@ class AuthController {
       const { email } = req.body;
       const user = await User.findOne({ email });
 
-      if (!user) {
-        return res.json({ success: true, message: 'If an account with this email exists, you will receive a password reset code.' });
-      }
+      // Always respond same way (security: don't reveal if email exists)
+      const successMsg = 'If an account with this email exists, you will receive a password reset code.';
 
-      const resetOTP = generateOTP();
-      user.passwordResetToken = resetOTP;
-      user.passwordResetExpires = new Date(Date.now() + (process.env.OTP_EXPIRE_MINUTES || 10) * 60 * 1000);
-      user.passwordResetAttempts = 0;
+      if (!user) return res.json({ success: true, message: successMsg });
+
+      const otp = generateOTP();
+      user.resetPasswordToken = otp;
+      user.resetPasswordExpires = new Date(Date.now() + 5 * 60 * 1000);
       await user.save();
 
-      // Send password reset email
-      const emailSent = await sendPasswordResetEmail(email, user.firstName, resetOTP);
-      if (!emailSent) {
+      // Fire-and-forget
+      sendPasswordResetEmail(email, user.firstName, otp).catch(e => {
         console.error('WARNING: Password reset email failed for', email);
-      }
-
-      res.json({
-        success: true,
-        message: 'Password reset code sent to your email.',
-        expiresIn: process.env.OTP_EXPIRE_MINUTES || 10,
       });
+
+      res.json({ success: true, message: successMsg });
     } catch (error) {
-      console.error('Password reset request error:', error);
-      res.status(500).json({ success: false, message: 'Failed to process password reset request. Please try again.' });
+      console.error('Forgot password error:', error);
+      res.status(500).json({ success: false, message: 'Server error. Please try again.' });
     }
   }
 
   static async resetPassword(req, res) {
     try {
-      const { email, otp, newPassword } = req.body;
+      const { email, token, newPassword } = req.body;
 
-      const user = await User.findOne({ email, passwordResetExpires: { $gt: Date.now() } })
-        .select('+passwordResetToken +passwordResetExpires +passwordResetAttempts');
-
-      if (user && user.passwordResetToken !== otp) {
-        user.passwordResetAttempts = (user.passwordResetAttempts || 0) + 1;
-        await user.save();
-        return res.status(400).json({ success: false, message: 'Invalid reset code' });
+      if (!email || !token || !newPassword) {
+        return res.status(400).json({ success: false, message: 'All fields are required' });
       }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+      }
+
+      const user = await User.findOne({
+        email,
+        resetPasswordToken: token,
+        resetPasswordExpires: { $gt: Date.now() }
+      }).select('+resetPasswordToken +resetPasswordExpires');
 
       if (!user) {
         return res.status(400).json({ success: false, message: 'Invalid or expired reset code' });
       }
 
-      if (user.passwordResetAttempts >= 3) {
-        user.passwordResetToken = undefined;
-        user.passwordResetExpires = undefined;
-        user.passwordResetAttempts = 0;
-        await user.save();
-        return res.status(429).json({ success: false, message: 'Too many failed attempts. Please request a new reset code.' });
-      }
-
       user.password = newPassword;
-      user.passwordResetToken = undefined;
-      user.passwordResetExpires = undefined;
-      user.passwordResetAttempts = 0;
-      if (user.loginAttempts > 0) await user.resetLoginAttempts();
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
       await user.save();
 
-      res.json({ success: true, message: 'Password reset successful! You can now login with your new password.' });
+      res.json({ success: true, message: 'Password reset successfully! You can now log in.' });
     } catch (error) {
-      console.error('Password reset error:', error);
-      res.status(500).json({ success: false, message: 'Password reset failed. Please try again.' });
+      console.error('Reset password error:', error);
+      res.status(500).json({ success: false, message: 'Password reset failed' });
     }
   }
 
   static async refreshToken(req, res) {
     try {
-      const { refreshToken } = req.body;
-      if (!refreshToken) return res.status(401).json({ success: false, message: 'Refresh token is required' });
-
-      const tokens = await refreshAccessToken(refreshToken);
-      res.json({ success: true, message: 'Token refreshed successfully', data: tokens });
+      const { refreshToken: token } = req.body;
+      if (!token) return res.status(400).json({ success: false, message: 'Refresh token is required' });
+      const result = await refreshAccessToken(token);
+      if (!result) return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+      res.json({ success: true, data: result });
     } catch (error) {
-      console.error('Token refresh error:', error);
-      if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-        return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
-      }
-      res.status(500).json({ success: false, message: 'Token refresh failed' });
+      res.status(401).json({ success: false, message: 'Token refresh failed' });
     }
   }
 
   static async logout(req, res) {
     try {
-      const refreshToken = req.body.refreshToken;
-      const user = req.user;
-      if (user && refreshToken) {
-        await User.findByIdAndUpdate(user._id, { $pull: { refreshTokens: { token: refreshToken } } });
+      const user = await User.findById(req.user._id || req.user.id);
+      if (user) {
+        const { refreshToken } = req.body;
+        if (refreshToken) {
+          user.refreshTokens = (user.refreshTokens || []).filter(t => t.token !== refreshToken);
+        } else {
+          user.refreshTokens = [];
+        }
+        await user.save();
       }
       res.json({ success: true, message: 'Logged out successfully' });
     } catch (error) {
-      console.error('Logout error:', error);
-      res.status(500).json({ success: false, message: 'Logout failed' });
+      res.status(200).json({ success: true, message: 'Logged out' });
     }
   }
 
-  static async getCurrentUser(req, res) {
+  static async getMe(req, res) {
     try {
-      const user = await require('../models/User').findById(req.user._id)
-        .select('-password -refreshTokens -emailVerificationToken -passwordResetToken')
-        .populate('friends.user', 'firstName lastName profileImage');
+      const user = await User.findById(req.user._id || req.user.id)
+        .select('-password -refreshTokens -emailVerificationToken -resetPasswordToken')
+        .populate('friends.user', 'firstName lastName fullName profileImage');
+
+      if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
       res.json({
         success: true,
         data: {
-          user: {
-            id: user._id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            isEmailVerified: user.isEmailVerified,
-            profileImage: user.profileImage,
-            coverImage: user.coverImage,
-            age: user.age,
-            dateOfBirth: user.dateOfBirth,
-            location: user.location,
-            bio: user.bio,
-            preferences: user.preferences,
-            drinkingStats: user.drinkingStats,
-            friends: user.friends,
-            role: user.role,
-            createdAt: user.createdAt
-          }
+          ...user.toJSON(),
+          id: user._id,
+          friends: (user.friends || []).filter(f => f.status === 'accepted').map(f => ({
+            id: f.user?._id, firstName: f.user?.firstName, lastName: f.user?.lastName,
+            fullName: f.user?.fullName, profileImage: f.user?.profileImage, status: f.status
+          }))
         }
       });
     } catch (error) {
-      console.error('Get current user error:', error);
-      res.status(500).json({ success: false, message: 'Failed to get user information' });
+      res.status(500).json({ success: false, message: 'Failed to get user' });
     }
   }
 }
