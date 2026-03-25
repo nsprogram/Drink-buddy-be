@@ -49,21 +49,21 @@ class AuthController {
       // Send welcome notification
       sendWelcomeNotification(user._id, firstName).catch(() => {});
 
-      // Try sending email (may fail on Render — SMTP blocked)
+      // Send verification email
       const emailSent = await sendEmailVerification(email, firstName, verificationToken);
+      if (!emailSent) {
+        console.error('WARNING: Verification email failed to send for', email);
+      }
 
       res.status(201).json({
         success: true,
-        message: emailSent
-          ? 'Registration successful! Check your email for verification code.'
-          : 'Registration successful! Use the verification code shown below.',
+        message: 'Registration successful! Please check your email for verification code.',
         data: {
           userId: user._id,
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
           requiresEmailVerification: true,
-          otp: verificationToken, // Always include OTP as fallback
         }
       });
     } catch (error) {
@@ -127,21 +127,16 @@ class AuthController {
       user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await user.save();
 
-      // Send email — but don't block the response
-      let emailSent = false;
-      try {
-        await sendEmailVerification(email, user.firstName, verificationToken);
-        emailSent = true;
-      } catch (emailErr) {
-        console.error('Email send failed:', emailErr.message);
+      // Send verification email
+      const emailSent = await sendEmailVerification(email, user.firstName, verificationToken);
+      if (!emailSent) {
+        console.error('WARNING: Resend verification email failed for', email);
       }
 
       const response = {
         success: true,
-        message: emailSent ? 'Verification code sent to your email!' : 'Verification code generated. Check app for code.',
+        message: 'Verification code sent to your email!',
       };
-      // Always include OTP in response so app can show it if email fails
-      response.data = { otp: verificationToken };
       res.json(response);
     } catch (error) {
       console.error('Resend verification error:', error);
@@ -181,16 +176,14 @@ class AuthController {
           await existingUser.save();
         }
 
-        // Try sending email
-        sendEmailVerification(user.email, user.firstName, verificationToken).catch(e => {
-          console.error('Failed to send verification email:', e.message);
-        });
+        // Send verification email
+        await sendEmailVerification(user.email, user.firstName, verificationToken);
 
         return res.status(403).json({
           success: false,
-          message: 'Please verify your email first.',
+          message: 'Please verify your email first. A verification code has been sent to your email.',
           requiresVerification: true,
-          data: { email: user.email, otp: verificationToken }
+          data: { email: user.email }
         });
       }
 
@@ -299,27 +292,17 @@ class AuthController {
       user.passwordResetAttempts = 0;
       await user.save();
 
-      // Send email in background — respond immediately
-      sendPasswordResetEmail(email, user.firstName, resetOTP).catch(emailErr => {
-        console.error('Password reset email failed:', emailErr.message);
-      });
-      const emailSent = true;
-
-      // In development or if email fails, include OTP in response for testing
-      const response = {
-        success: true,
-        message: emailSent
-          ? 'Password reset code sent to your email.'
-          : 'Email service temporarily unavailable. Use the code below.',
-        expiresIn: process.env.OTP_EXPIRE_MINUTES || 10,
-      };
-
-      // Include OTP in response if email failed (so user can still reset)
-      if (!emailSent || process.env.NODE_ENV === 'development') {
-        response.data = { otp: resetOTP };
+      // Send password reset email
+      const emailSent = await sendPasswordResetEmail(email, user.firstName, resetOTP);
+      if (!emailSent) {
+        console.error('WARNING: Password reset email failed for', email);
       }
 
-      res.json(response);
+      res.json({
+        success: true,
+        message: 'Password reset code sent to your email.',
+        expiresIn: process.env.OTP_EXPIRE_MINUTES || 10,
+      });
     } catch (error) {
       console.error('Password reset request error:', error);
       res.status(500).json({ success: false, message: 'Failed to process password reset request. Please try again.' });
