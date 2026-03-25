@@ -33,100 +33,134 @@ const emailTemplate = (title, body, code) => `
 `;
 
 // ═══════════════════════════════════════
-// Method 1: Resend HTTP API (works on Render — no SMTP needed)
-// Uses raw fetch, no npm package required
+// Nodemailer Gmail — ONLY method, no third party
+// Uses pool connections + multiple port attempts
 // ═══════════════════════════════════════
-const sendViaResendHTTP = async (to, subject, html) => {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return false;
+let transporter = null;
+let transporterReady = false;
 
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || 'Drink Buddy <onboarding@resend.dev>',
-        to: [to],
-        subject,
-        html,
-      }),
-    });
+const createTransporter = async () => {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
 
-    const data = await response.json();
-
-    if (response.ok && data.id) {
-      console.log(`✅ [Resend] Email sent to ${to} (id: ${data.id})`);
-      return true;
-    }
-
-    console.log(`⚠️ [Resend] Failed for ${to}: ${data.message || JSON.stringify(data)}`);
-    return false;
-  } catch (err) {
-    console.log(`⚠️ [Resend] Error: ${err.message}`);
-    return false;
+  if (!user || !pass) {
+    console.error('❌ EMAIL_USER or EMAIL_PASS not set in .env');
+    return null;
   }
+
+  // Try multiple configs — one will work depending on environment
+  const configs = [
+    // Config 1: Gmail service (simplest, works most places)
+    {
+      name: 'Gmail Service',
+      service: 'gmail',
+      auth: { user, pass },
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 30000,
+    },
+    // Config 2: Direct SMTP with TLS on port 587
+    {
+      name: 'Gmail 587 TLS',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 30000,
+    },
+    // Config 3: Direct SMTP with SSL on port 465
+    {
+      name: 'Gmail 465 SSL',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 30000,
+    },
+  ];
+
+  for (const config of configs) {
+    try {
+      const { name, ...transportConfig } = config;
+      console.log(`📧 Trying ${name}...`);
+      const t = nodemailer.createTransport(transportConfig);
+      await t.verify();
+      console.log(`✅ ${name} connected successfully!`);
+      return t;
+    } catch (err) {
+      console.log(`⚠️ ${config.name} failed: ${err.message}`);
+    }
+  }
+
+  console.error('❌ All Gmail SMTP configs failed');
+  return null;
 };
 
-// ═══════════════════════════════════════
-// Method 2: Nodemailer Gmail SMTP (works locally, may timeout on Render)
-// ═══════════════════════════════════════
-let cachedTransporter = null;
+// Initialize transporter on first use
+const getTransporter = async () => {
+  if (transporter && transporterReady) return transporter;
 
-const sendViaGmailSMTP = async (to, subject, html) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return false;
+  transporter = await createTransporter();
+  transporterReady = !!transporter;
+  return transporter;
+};
+
+// Main send function
+const sendMail = async (to, subject, html) => {
+  const t = await getTransporter();
+
+  if (!t) {
+    console.error(`❌ No email transporter available. Cannot send to ${to}`);
+    return false;
+  }
 
   try {
-    if (!cachedTransporter) {
-      cachedTransporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-      });
-
-      // Verify connection
-      await cachedTransporter.verify();
-      console.log('✅ Gmail SMTP transporter ready');
-    }
-
-    const info = await cachedTransporter.sendMail({
+    const info = await t.sendMail({
       from: `"Drink Buddy 🍷" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       html,
     });
 
-    console.log(`✅ [Gmail] Email sent to ${to} - ${info.messageId}`);
+    console.log(`✅ Email sent to ${to} - MessageID: ${info.messageId}`);
     return true;
   } catch (err) {
-    console.log(`⚠️ [Gmail] Failed: ${err.message}`);
-    cachedTransporter = null; // Reset so next attempt creates fresh
+    console.error(`❌ Email send failed to ${to}: ${err.message}`);
+    // Reset transporter so next attempt retries connection
+    transporter = null;
+    transporterReady = false;
+
+    // Retry once with fresh transporter
+    try {
+      console.log(`🔄 Retrying email to ${to}...`);
+      const t2 = await createTransporter();
+      if (t2) {
+        const info = await t2.sendMail({
+          from: `"Drink Buddy 🍷" <${process.env.EMAIL_USER}>`,
+          to,
+          subject,
+          html,
+        });
+        console.log(`✅ Retry succeeded! Email sent to ${to} - ${info.messageId}`);
+        transporter = t2;
+        transporterReady = true;
+        return true;
+      }
+    } catch (retryErr) {
+      console.error(`❌ Retry also failed: ${retryErr.message}`);
+    }
+
     return false;
   }
-};
-
-// ═══════════════════════════════════════
-// Main send function — tries Resend HTTP first, then Gmail SMTP
-// ═══════════════════════════════════════
-const sendMail = async (to, subject, html) => {
-  // Try Resend HTTP API first (works on Render via HTTPS, no SMTP)
-  const resendOk = await sendViaResendHTTP(to, subject, html);
-  if (resendOk) return true;
-
-  // Fallback to Gmail SMTP (works locally)
-  console.log(`🔄 Falling back to Gmail SMTP for ${to}...`);
-  const gmailOk = await sendViaGmailSMTP(to, subject, html);
-  if (gmailOk) return true;
-
-  console.error(`❌ ALL email methods failed for ${to}`);
-  return false;
 };
 
 // ── Email functions ──
