@@ -61,6 +61,33 @@ function setupSocket(server) {
     // ── Join personal room ──
     socket.join(`user:${userId}`);
 
+    // ── Check for pending ringing calls when user comes online ──
+    (async () => {
+      try {
+        const pendingCall = await Call.findOne({
+          receiver: userId,
+          status: 'ringing',
+          createdAt: { $gt: new Date(Date.now() - 60 * 1000) }, // within last 60s
+        }).populate('caller', 'firstName lastName profileImage');
+
+        if (pendingCall) {
+          console.log(`[Socket] Delivering pending call to ${userId} from ${pendingCall.caller?.firstName}`);
+          socket.emit('call:incoming', {
+            callId: pendingCall._id.toString(),
+            caller: {
+              _id: pendingCall.caller._id,
+              firstName: pendingCall.caller.firstName,
+              lastName: pendingCall.caller.lastName,
+              profileImage: pendingCall.caller.profileImage,
+            },
+            type: pendingCall.type,
+          });
+        }
+      } catch (err) {
+        console.error('[Socket] Pending call check error:', err.message);
+      }
+    })();
+
     // ══════════════════════════
     //  CHAT EVENTS
     // ══════════════════════════
@@ -207,7 +234,7 @@ function setupSocket(server) {
 
         callback?.({ success: true, callId: call._id.toString() });
 
-        // Auto-miss after 30 seconds
+        // Auto-miss after 60 seconds (gives offline users time to come online)
         setTimeout(async () => {
           try {
             const c = await Call.findById(call._id);
