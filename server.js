@@ -206,50 +206,12 @@ function startSelfPing() {
   }, SELF_PING_INTERVAL);
 }
 
-// ── Seed demo + admin accounts ──
-async function seedAccounts() {
-  try {
-    const User = require('./models/User');
-
-    // Demo user
-    const demo = await User.findOne({ email: 'demo@drinkbuddy.com' });
-    if (!demo) {
-      await new User({
-        firstName: 'Demo', lastName: 'User', fullName: 'Demo User',
-        email: 'demo@drinkbuddy.com', password: 'Demo1234',
-        isEmailVerified: true, bio: 'Welcome to Drink Buddy!', age: 25,
-      }).save();
-      console.log('👤 Demo: demo@drinkbuddy.com / Demo1234');
-    }
-
-    // Admin user
-    const admin = await User.findOne({ email: 'admin@drinkbuddy.com' });
-    if (!admin) {
-      await new User({
-        firstName: 'Admin', lastName: 'User', fullName: 'Admin User',
-        email: 'admin@drinkbuddy.com', password: 'Admin1234',
-        isEmailVerified: true, role: 'admin', bio: 'System Administrator',
-      }).save();
-      console.log('🔑 Admin: admin@drinkbuddy.com / Admin1234');
-    }
-
-    console.log('👤 Accounts seeded');
-  } catch (e) {
-    console.log('⚠️ Seed skipped:', e.message);
-  }
-}
-
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 DrinkBuddy Backend running on port ${PORT}`);
     console.log(`🔌 Socket.io ready`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
-    console.log(`👤 Demo: demo@drinkbuddy.com / Demo1234`);
-
-    // Seed demo account after DB connects
-    mongoose.connection.once('open', () => seedAccounts());
-    if (mongoose.connection.readyState === 1) seedAccounts();
 
     startSelfPing();
   });
