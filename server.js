@@ -21,7 +21,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const callRoutes = require('./routes/callRoutes');
-const adminRoutes = require('./routes/adminRoutes');
+
 
 const app = express();
 const server = http.createServer(app);
@@ -116,7 +116,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/calls', callRoutes);
-app.use('/api/admin', adminRoutes);
+// admin routes removed
 
 // Health check
 app.get('/api/health', (req, res) => {
