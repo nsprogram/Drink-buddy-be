@@ -29,6 +29,9 @@ class AuthController {
         computedAge = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
       }
 
+      // Generate verification OTP
+      const otp = generateOTP();
+
       const user = new User({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -37,30 +40,28 @@ class AuthController {
         password,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
         age: computedAge,
-        isEmailVerified: true, // Auto-verify — no OTP needed
+        isEmailVerified: false,
+        emailVerificationToken: otp,
+        emailVerificationExpires: new Date(Date.now() + 5 * 60 * 1000),
       });
 
       await user.save();
 
-      // Send welcome notification
-      sendWelcomeNotification(user._id, firstName).catch(() => {});
-
-      // Auto-login after register — generate tokens
-      const tokens = generateTokens(user);
-      user.refreshTokens = [{ token: tokens.refreshToken, device: req.headers['user-agent'] || 'Unknown', createdAt: new Date() }];
-      await user.save();
+      // Send verification email
+      const emailSent = await sendEmailVerification(user.email, firstName, otp);
+      console.log(`[Auth] Verification email to ${user.email}: ${emailSent ? 'sent' : 'FAILED'}`);
 
       res.status(201).json({
         success: true,
-        message: 'Registration successful!',
+        message: emailSent
+          ? 'Registration successful! Please check your email for verification code.'
+          : 'Registration successful! Verification code could not be sent.',
         data: {
           userId: user._id,
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          requiresEmailVerification: false,
-          user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: true, profileImage: null, coverImage: null, age: user.age, location: '', bio: '', role: user.role || 'user' },
-          ...tokens,
+          requiresEmailVerification: true,
         }
       });
     } catch (error) {
@@ -122,17 +123,15 @@ class AuthController {
 
       const verificationToken = generateOTP();
       user.emailVerificationToken = verificationToken;
-      user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      user.emailVerificationExpires = new Date(Date.now() + 5 * 60 * 1000);
       await user.save();
 
-      // Fire-and-forget
-      sendEmailVerification(email, user.firstName, verificationToken).catch(e => {
-        console.error('WARNING: Resend verification email failed for', email);
-      });
+      const emailSent = await sendEmailVerification(email, user.firstName, verificationToken);
+      console.log(`[Auth] Resend verification to ${email}: ${emailSent ? 'sent' : 'FAILED'}`);
 
       res.json({
         success: true,
-        message: 'Verification code sent to your email!',
+        message: emailSent ? 'Verification code sent!' : 'Could not send email. Please try again.',
       });
     } catch (error) {
       console.error('Resend verification error:', error);
@@ -155,9 +154,14 @@ class AuthController {
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
 
-      // Auto-verify old unverified users on login
+      // Block unverified users from logging in
       if (!user.isEmailVerified) {
-        user.isEmailVerified = true;
+        return res.status(403).json({
+          success: false,
+          message: 'Please verify your email before logging in. Check your inbox for the verification code.',
+          requiresVerification: true,
+          email: user.email,
+        });
       }
 
       if (user.loginAttempts > 0) await user.resetLoginAttempts();
@@ -193,12 +197,11 @@ class AuthController {
       if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
       const otp = generateOTP();
-      user.loginOTP = otp;
-      user.loginOTPExpires = new Date(Date.now() + 5 * 60 * 1000);
+      user.loginOTP = { code: otp, expires: new Date(Date.now() + 5 * 60 * 1000), attempts: 0 };
       await user.save();
 
-      // Fire-and-forget
-      sendLoginOTP(email, user.firstName, otp).catch(() => {});
+      const emailSent = await sendLoginOTP(email, user.firstName, otp);
+      console.log(`[Auth] Login OTP for ${email}: ${emailSent ? 'sent' : 'FAILED'}`);
 
       res.json({ success: true, message: 'Login OTP sent to your email' });
     } catch (error) {
@@ -218,14 +221,13 @@ class AuthController {
       if (!user) return res.json({ success: true, message: successMsg });
 
       const otp = generateOTP();
-      user.resetPasswordToken = otp;
-      user.resetPasswordExpires = new Date(Date.now() + 5 * 60 * 1000);
+      user.passwordResetToken = otp;
+      user.passwordResetExpires = new Date(Date.now() + 5 * 60 * 1000);
+      user.passwordResetAttempts = 0;
       await user.save();
 
-      // Fire-and-forget
-      sendPasswordResetEmail(email, user.firstName, otp).catch(e => {
-        console.error('WARNING: Password reset email failed for', email);
-      });
+      const emailSent = await sendPasswordResetEmail(email, user.firstName, otp);
+      console.log(`[Auth] Password reset OTP for ${email}: ${emailSent ? 'sent' : 'FAILED'}`);
 
       res.json({ success: true, message: successMsg });
     } catch (error) {
@@ -247,17 +249,18 @@ class AuthController {
 
       const user = await User.findOne({
         email,
-        resetPasswordToken: token,
-        resetPasswordExpires: { $gt: Date.now() }
-      }).select('+resetPasswordToken +resetPasswordExpires');
+        passwordResetToken: token,
+        passwordResetExpires: { $gt: Date.now() }
+      }).select('+passwordResetToken +passwordResetExpires');
 
       if (!user) {
         return res.status(400).json({ success: false, message: 'Invalid or expired reset code' });
       }
 
       user.password = newPassword;
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpires = undefined;
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      user.passwordResetAttempts = 0;
       await user.save();
 
       res.json({ success: true, message: 'Password reset successfully! You can now log in.' });
