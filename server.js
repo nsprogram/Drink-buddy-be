@@ -21,7 +21,6 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const callRoutes = require('./routes/callRoutes');
-const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -65,7 +64,6 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Static files
 app.use('/uploads', express.static('uploads'));
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Database connection
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/drinkbuddy';
@@ -117,7 +115,6 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/calls', callRoutes);
-app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
