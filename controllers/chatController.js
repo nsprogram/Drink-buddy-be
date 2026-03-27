@@ -296,6 +296,29 @@ class ChatController {
       res.status(500).json({ success: false, message: 'Failed to update online status' });
     }
   }
+  // Clear all messages between two users
+  static async clearChat(req, res) {
+    try {
+      const { friendId } = req.params;
+      const currentUserId = req.user._id;
+
+      const result = await Message.deleteMany({
+        $or: [
+          { sender: currentUserId, recipient: friendId },
+          { sender: friendId, recipient: currentUserId },
+        ],
+      });
+
+      res.json({
+        success: true,
+        message: 'Chat history cleared',
+        data: { deletedCount: result.deletedCount },
+      });
+    } catch (error) {
+      console.error('Clear chat error:', error);
+      res.status(500).json({ success: false, message: 'Failed to clear chat' });
+    }
+  }
 }
 
 module.exports = ChatController;
