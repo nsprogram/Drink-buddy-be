@@ -33,134 +33,131 @@ const emailTemplate = (title, body, code) => `
 `;
 
 // ═══════════════════════════════════════
-// Nodemailer Gmail — ONLY method, no third party
-// Uses pool connections + multiple port attempts
+// Method 1: SMTP (works locally + paid Render)
 // ═══════════════════════════════════════
 let transporter = null;
-let transporterReady = false;
 
-const createTransporter = async () => {
+const sendViaSMTP = async (to, subject, html) => {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
-
-  if (!user || !pass) {
-    console.error('❌ EMAIL_USER or EMAIL_PASS not set in .env');
-    return null;
-  }
-
-  // Try multiple configs — one will work depending on environment
-  const configs = [
-    // Config 1: Gmail service (simplest, works most places)
-    {
-      name: 'Gmail Service',
-      service: 'gmail',
-      auth: { user, pass },
-      pool: true,
-      maxConnections: 3,
-      maxMessages: 100,
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-    },
-    // Config 2: Direct SMTP with TLS on port 587
-    {
-      name: 'Gmail 587 TLS',
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: { user, pass },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-    },
-    // Config 3: Direct SMTP with SSL on port 465
-    {
-      name: 'Gmail 465 SSL',
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user, pass },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-    },
-  ];
-
-  for (const config of configs) {
-    try {
-      const { name, ...transportConfig } = config;
-      console.log(`📧 Trying ${name}...`);
-      const t = nodemailer.createTransport(transportConfig);
-      await t.verify();
-      console.log(`✅ ${name} connected successfully!`);
-      return t;
-    } catch (err) {
-      console.log(`⚠️ ${config.name} failed: ${err.message}`);
-    }
-  }
-
-  console.error('❌ All Gmail SMTP configs failed');
-  return null;
-};
-
-// Initialize transporter on first use
-const getTransporter = async () => {
-  if (transporter && transporterReady) return transporter;
-
-  transporter = await createTransporter();
-  transporterReady = !!transporter;
-  return transporter;
-};
-
-// Main send function
-const sendMail = async (to, subject, html) => {
-  const t = await getTransporter();
-
-  if (!t) {
-    console.error(`❌ No email transporter available. Cannot send to ${to}`);
-    return false;
-  }
+  if (!user || !pass) return false;
 
   try {
-    const info = await t.sendMail({
-      from: `"Drink Buddy 🍷" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      html,
-    });
-
-    console.log(`✅ Email sent to ${to} - MessageID: ${info.messageId}`);
-    return true;
-  } catch (err) {
-    console.error(`❌ Email send failed to ${to}: ${err.message}`);
-    // Reset transporter so next attempt retries connection
-    transporter = null;
-    transporterReady = false;
-
-    // Retry once with fresh transporter
-    try {
-      console.log(`🔄 Retrying email to ${to}...`);
-      const t2 = await createTransporter();
-      if (t2) {
-        const info = await t2.sendMail({
-          from: `"Drink Buddy 🍷" <${process.env.EMAIL_USER}>`,
-          to,
-          subject,
-          html,
-        });
-        console.log(`✅ Retry succeeded! Email sent to ${to} - ${info.messageId}`);
-        transporter = t2;
-        transporterReady = true;
-        return true;
-      }
-    } catch (retryErr) {
-      console.error(`❌ Retry also failed: ${retryErr.message}`);
+    if (!transporter) {
+      transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass },
+        pool: true,
+        maxConnections: 3,
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
+      });
+      await transporter.verify();
+      console.log('✅ Gmail SMTP ready');
     }
 
+    const info = await transporter.sendMail({
+      from: `"Drink Buddy 🍷" <${user}>`,
+      to, subject, html,
+    });
+    console.log(`✅ [SMTP] Email sent to ${to} - ${info.messageId}`);
+    return true;
+  } catch (err) {
+    console.log(`⚠️ [SMTP] Failed: ${err.message}`);
+    transporter = null;
     return false;
   }
+};
+
+// ═══════════════════════════════════════
+// Method 2: HTTP API via fetch (works on Render FREE tier)
+// Uses smtp2go.com free tier OR direct Gmail API
+// ═══════════════════════════════════════
+const sendViaHTTP = async (to, subject, html) => {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
+  if (!user || !pass) return false;
+
+  // Use Brevo HTTP API if key exists
+  const brevoKey = process.env.BREVO_API_KEY;
+  if (brevoKey) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': brevoKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'Drink Buddy', email: user },
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        console.log(`✅ [Brevo] Email sent to ${to}`);
+        return true;
+      }
+      console.log(`⚠️ [Brevo] Failed: ${JSON.stringify(data)}`);
+    } catch (err) {
+      console.log(`⚠️ [Brevo] Error: ${err.message}`);
+    }
+  }
+
+  // Use Mailjet HTTP API if keys exist
+  const mjKey = process.env.MAILJET_API_KEY;
+  const mjSecret = process.env.MAILJET_SECRET_KEY;
+  if (mjKey && mjSecret) {
+    try {
+      const res = await fetch('https://api.mailjet.com/v3.1/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(`${mjKey}:${mjSecret}`).toString('base64'),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          Messages: [{
+            From: { Email: user, Name: 'Drink Buddy' },
+            To: [{ Email: to }],
+            Subject: subject,
+            HTMLPart: html,
+          }],
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        console.log(`✅ [Mailjet] Email sent to ${to}`);
+        return true;
+      }
+      console.log(`⚠️ [Mailjet] Failed: ${JSON.stringify(data)}`);
+    } catch (err) {
+      console.log(`⚠️ [Mailjet] Error: ${err.message}`);
+    }
+  }
+
+  return false;
+};
+
+// ═══════════════════════════════════════
+// Main send — tries SMTP first, falls back to HTTP API
+// ═══════════════════════════════════════
+const sendMail = async (to, subject, html) => {
+  // Try SMTP first (works locally + paid Render)
+  const smtpOk = await sendViaSMTP(to, subject, html);
+  if (smtpOk) return true;
+
+  // Try HTTP API (works on Render free tier)
+  console.log(`🔄 SMTP failed, trying HTTP API for ${to}...`);
+  const httpOk = await sendViaHTTP(to, subject, html);
+  if (httpOk) return true;
+
+  console.error(`❌ ALL email methods failed for ${to}`);
+  console.error('💡 To fix: Add BREVO_API_KEY or MAILJET_API_KEY+MAILJET_SECRET_KEY to .env');
+  console.error('💡 Sign up free at https://www.brevo.com or https://www.mailjet.com');
+  return false;
 };
 
 // ── Email functions ──
