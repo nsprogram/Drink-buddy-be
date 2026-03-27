@@ -204,14 +204,43 @@ function startSelfPing() {
   }, SELF_PING_INTERVAL);
 }
 
+// ── Seed demo account ──
+async function seedDemoAccount() {
+  try {
+    const User = require('./models/User');
+    const existing = await User.findOne({ email: 'demo@drinkbuddy.com' });
+    if (!existing) {
+      const demo = new User({
+        firstName: 'Demo', lastName: 'User',
+        fullName: 'Demo User',
+        email: 'demo@drinkbuddy.com',
+        password: 'Demo1234',
+        isEmailVerified: true,
+        bio: 'Welcome to Drink Buddy!',
+        age: 25,
+      });
+      await demo.save();
+      console.log('👤 Demo account created: demo@drinkbuddy.com / Demo1234');
+    } else {
+      console.log('👤 Demo account exists: demo@drinkbuddy.com / Demo1234');
+    }
+  } catch (e) {
+    console.log('⚠️ Demo seed skipped:', e.message);
+  }
+}
+
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 DrinkBuddy Backend running on port ${PORT}`);
     console.log(`🔌 Socket.io ready`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
+    console.log(`👤 Demo: demo@drinkbuddy.com / Demo1234`);
 
-    // Start self-ping after server is up
+    // Seed demo account after DB connects
+    mongoose.connection.once('open', () => seedDemoAccount());
+    if (mongoose.connection.readyState === 1) seedDemoAccount();
+
     startSelfPing();
   });
 }

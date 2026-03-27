@@ -29,8 +29,6 @@ class AuthController {
         computedAge = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
       }
 
-      const verificationToken = generateOTP();
-
       const user = new User({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -39,27 +37,30 @@ class AuthController {
         password,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
         age: computedAge,
-        emailVerificationToken: verificationToken,
-        emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        isEmailVerified: true, // Auto-verify — no OTP needed
       });
 
       await user.save();
 
-      // Fire-and-forget — don't await, respond immediately
+      // Send welcome notification
       sendWelcomeNotification(user._id, firstName).catch(() => {});
-      sendEmailVerification(email, firstName, verificationToken).catch(e => {
-        console.error('WARNING: Verification email failed for', email, e.message || '');
-      });
+
+      // Auto-login after register — generate tokens
+      const tokens = generateTokens(user);
+      user.refreshTokens = [{ token: tokens.refreshToken, device: req.headers['user-agent'] || 'Unknown', createdAt: new Date() }];
+      await user.save();
 
       res.status(201).json({
         success: true,
-        message: 'Registration successful! Please check your email for verification code.',
+        message: 'Registration successful!',
         data: {
           userId: user._id,
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          requiresEmailVerification: true,
+          requiresEmailVerification: false,
+          user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: true, profileImage: null, coverImage: null, age: user.age, location: '', bio: '' },
+          ...tokens,
         }
       });
     } catch (error) {
@@ -154,31 +155,9 @@ class AuthController {
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
       }
 
-      // Block login if email not verified
+      // Auto-verify old unverified users on login
       if (!user.isEmailVerified) {
-        const existingUser = await User.findById(user._id).select('+emailVerificationToken +emailVerificationExpires');
-        let verificationToken;
-
-        if (existingUser.emailVerificationToken && existingUser.emailVerificationExpires > Date.now()) {
-          verificationToken = existingUser.emailVerificationToken;
-        } else {
-          verificationToken = generateOTP();
-          existingUser.emailVerificationToken = verificationToken;
-          existingUser.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-          await existingUser.save();
-        }
-
-        // Fire-and-forget — respond immediately, don't wait for email
-        sendEmailVerification(user.email, user.firstName, verificationToken).catch(e => {
-          console.error('WARNING: Login verification email failed for', user.email);
-        });
-
-        return res.status(403).json({
-          success: false,
-          message: 'Please verify your email first. A verification code has been sent to your email.',
-          requiresVerification: true,
-          data: { email: user.email }
-        });
+        user.isEmailVerified = true;
       }
 
       if (user.loginAttempts > 0) await user.resetLoginAttempts();
