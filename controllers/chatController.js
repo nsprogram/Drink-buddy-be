@@ -67,6 +67,13 @@ class ChatController {
       await message.populate('sender', 'firstName lastName profileImage');
       await message.populate('recipient', 'firstName lastName profileImage');
 
+      // Emit to recipient via Socket.IO for real-time delivery
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user:${recipientId}`).emit('chat:receive', message);
+        console.log(`[Chat] REST msg sent to socket user:${recipientId}`);
+      }
+
       res.status(201).json({ success: true, message: 'Message sent successfully', data: message });
     } catch (error) {
       console.error('Send message error:', error);
@@ -96,6 +103,13 @@ class ChatController {
       message.isEdited = true;
       message.editedAt = new Date();
       await message.save();
+
+      // Notify recipient via socket
+      const recipientId = message.recipient?.toString();
+      const io = req.app.get('io');
+      if (io && recipientId) {
+        io.to(`user:${recipientId}`).emit('chat:edited', { messageId, content: message.content });
+      }
 
       res.json({ success: true, message: 'Message edited successfully', data: message });
     } catch (error) {
@@ -155,7 +169,15 @@ class ChatController {
         } catch (e) { console.error('Failed to delete image from Cloudinary:', e); }
       }
 
+      const recipientId = message.recipient?.toString();
       await Message.findByIdAndDelete(messageId);
+
+      // Notify recipient via socket
+      const io = req.app.get('io');
+      if (io && recipientId) {
+        io.to(`user:${recipientId}`).emit('chat:deleted', { messageId });
+      }
+
       res.json({ success: true, message: 'Message deleted successfully' });
     } catch (error) {
       console.error('Delete message error:', error);
