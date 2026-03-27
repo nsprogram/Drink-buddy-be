@@ -59,7 +59,7 @@ class AuthController {
           firstName: user.firstName,
           lastName: user.lastName,
           requiresEmailVerification: false,
-          user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: true, profileImage: null, coverImage: null, age: user.age, location: '', bio: '' },
+          user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: true, profileImage: null, coverImage: null, age: user.age, location: '', bio: '', role: user.role || 'user' },
           ...tokens,
         }
       });
@@ -103,7 +103,7 @@ class AuthController {
       res.json({
         success: true,
         message: 'Email verified successfully! Welcome to DrinkBuddy!',
-        data: { user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: user.isEmailVerified, profileImage: user.profileImage }, ...tokens }
+        data: { user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: user.isEmailVerified, profileImage: user.profileImage, role: user.role || 'user' }, ...tokens }
       });
     } catch (error) {
       console.error('Email verification error:', error);
@@ -173,7 +173,7 @@ class AuthController {
         success: true,
         message: 'Login successful!',
         data: {
-          user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: user.isEmailVerified, profileImage: user.profileImage, coverImage: user.coverImage, age: user.age, location: user.location, bio: user.bio },
+          user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isEmailVerified: user.isEmailVerified, profileImage: user.profileImage, coverImage: user.coverImage, age: user.age, location: user.location, bio: user.bio, role: user.role },
           ...tokens
         }
       });
