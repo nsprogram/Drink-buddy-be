@@ -21,6 +21,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const callRoutes = require('./routes/callRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -64,6 +65,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Static files
 app.use('/uploads', express.static('uploads'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Database connection
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/drinkbuddy';
@@ -115,6 +117,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/calls', callRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -204,28 +207,36 @@ function startSelfPing() {
   }, SELF_PING_INTERVAL);
 }
 
-// ── Seed demo account ──
-async function seedDemoAccount() {
+// ── Seed demo + admin accounts ──
+async function seedAccounts() {
   try {
     const User = require('./models/User');
-    const existing = await User.findOne({ email: 'demo@drinkbuddy.com' });
-    if (!existing) {
-      const demo = new User({
-        firstName: 'Demo', lastName: 'User',
-        fullName: 'Demo User',
-        email: 'demo@drinkbuddy.com',
-        password: 'Demo1234',
-        isEmailVerified: true,
-        bio: 'Welcome to Drink Buddy!',
-        age: 25,
-      });
-      await demo.save();
-      console.log('👤 Demo account created: demo@drinkbuddy.com / Demo1234');
-    } else {
-      console.log('👤 Demo account exists: demo@drinkbuddy.com / Demo1234');
+
+    // Demo user
+    const demo = await User.findOne({ email: 'demo@drinkbuddy.com' });
+    if (!demo) {
+      await new User({
+        firstName: 'Demo', lastName: 'User', fullName: 'Demo User',
+        email: 'demo@drinkbuddy.com', password: 'Demo1234',
+        isEmailVerified: true, bio: 'Welcome to Drink Buddy!', age: 25,
+      }).save();
+      console.log('👤 Demo: demo@drinkbuddy.com / Demo1234');
     }
+
+    // Admin user
+    const admin = await User.findOne({ email: 'admin@drinkbuddy.com' });
+    if (!admin) {
+      await new User({
+        firstName: 'Admin', lastName: 'User', fullName: 'Admin User',
+        email: 'admin@drinkbuddy.com', password: 'Admin1234',
+        isEmailVerified: true, role: 'admin', bio: 'System Administrator',
+      }).save();
+      console.log('🔑 Admin: admin@drinkbuddy.com / Admin1234');
+    }
+
+    console.log('👤 Accounts seeded');
   } catch (e) {
-    console.log('⚠️ Demo seed skipped:', e.message);
+    console.log('⚠️ Seed skipped:', e.message);
   }
 }
 
@@ -238,8 +249,8 @@ if (require.main === module) {
     console.log(`👤 Demo: demo@drinkbuddy.com / Demo1234`);
 
     // Seed demo account after DB connects
-    mongoose.connection.once('open', () => seedDemoAccount());
-    if (mongoose.connection.readyState === 1) seedDemoAccount();
+    mongoose.connection.once('open', () => seedAccounts());
+    if (mongoose.connection.readyState === 1) seedAccounts();
 
     startSelfPing();
   });

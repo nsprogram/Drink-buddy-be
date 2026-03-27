@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drink Buddy - Admin Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+:root{--bg:#060608;--card:#0D0D14;--card2:#12121C;--border:#1A1A28;--text:#F0ECE5;--text2:#8A8595;--text3:#4A4555;--orange:#FF8C42;--orange2:#FFB347;--green:#4ADE80;--red:#FF6B6B;--blue:#5CB8FF;--purple:#A78BFA;--gold:#FFD700;--gradient:linear-gradient(135deg,#FF6B35,#FF8C00)}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 30% 20%,rgba(255,140,66,0.06),transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(167,139,250,0.04),transparent 60%),var(--bg)}
+.login-box{width:400px;max-width:90vw;background:var(--card);border-radius:24px;padding:40px;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.login-box h1{font-size:28px;font-weight:900;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.login-box p{color:var(--text2);font-size:13px;margin-bottom:28px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;color:var(--text2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.form-group input{width:100%;height:48px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:0 16px;color:var(--text);font-size:14px;outline:none;transition:all .2s}
+.form-group input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,140,66,0.1)}
+.login-btn{width:100%;height:52px;background:var(--gradient);border:none;border-radius:14px;color:#fff;font-size:15px;font-weight:800;cursor:pointer;margin-top:8px;transition:transform .15s,opacity .15s}
+.login-btn:hover{transform:scale(1.02);opacity:.9}
+.login-btn:disabled{opacity:.5;cursor:not-allowed}
+.error-msg{color:var(--red);font-size:12px;text-align:center;margin-top:12px;min-height:18px}
+
+/* Dashboard */
+.dash{display:none;min-height:100vh}
+.dash.active{display:block}
+.sidebar{position:fixed;top:0;left:0;width:240px;height:100vh;background:var(--card);border-right:1px solid var(--border);padding:24px 16px;z-index:100;display:flex;flex-direction:column}
+.logo{font-size:20px;font-weight:900;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;padding:0 8px;margin-bottom:32px;display:flex;align-items:center;gap:10px}
+.logo span{font-size:24px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;margin-bottom:4px}
+.nav-item:hover,.nav-item.active{background:rgba(255,140,66,0.08);color:var(--orange)}
+.nav-item.active{border:1px solid rgba(255,140,66,0.15)}
+.nav-icon{width:20px;text-align:center}
+.sidebar-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--border)}
+.user-info{display:flex;align-items:center;gap:10px;padding:8px}
+.user-avatar{width:36px;height:36px;border-radius:12px;background:var(--gradient);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff}
+.logout-btn{width:100%;margin-top:12px;padding:10px;background:rgba(255,107,107,0.06);border:1px solid rgba(255,107,107,0.1);border-radius:12px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+.logout-btn:hover{background:rgba(255,107,107,0.12)}
+
+.main{margin-left:240px;padding:24px 28px;min-height:100vh}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+.header h2{font-size:24px;font-weight:900}
+.header-right{display:flex;align-items:center;gap:12px}
+.refresh-btn{padding:8px 16px;background:rgba(255,140,66,0.06);border:1px solid rgba(255,140,66,0.12);border-radius:12px;color:var(--orange);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+.refresh-btn:hover{background:rgba(255,140,66,0.12)}
+.time-badge{padding:8px 14px;background:var(--card2);border-radius:12px;color:var(--text2);font-size:11px;font-weight:600;border:1px solid var(--border)}
+
+/* Stat Cards */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:var(--card);border-radius:20px;padding:22px;border:1px solid var(--border);position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
+.stat-card:hover{transform:translateY(-2px);border-color:rgba(255,140,66,0.2)}
+.stat-card::before{content:'';position:absolute;top:0;right:0;width:80px;height:80px;border-radius:0 0 0 80px;opacity:.04}
+.stat-card:nth-child(1)::before{background:var(--orange)}
+.stat-card:nth-child(2)::before{background:var(--green)}
+.stat-card:nth-child(3)::before{background:var(--blue)}
+.stat-card:nth-child(4)::before{background:var(--purple)}
+.stat-label{font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.stat-value{font-size:32px;font-weight:900;margin-bottom:6px}
+.stat-value.orange{color:var(--orange)}
+.stat-value.green{color:var(--green)}
+.stat-value.blue{color:var(--blue)}
+.stat-value.purple{color:var(--purple)}
+.stat-change{font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px}
+.stat-change.up{color:var(--green)}
+.stat-change.down{color:var(--red)}
+.stat-sub{font-size:10px;color:var(--text3);margin-top:4px}
+
+/* Charts */
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:24px}
+.chart-card{background:var(--card);border-radius:20px;padding:22px;border:1px solid var(--border)}
+.chart-title{font-size:14px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.chart-area{height:240px;position:relative;overflow:hidden}
+.bar-chart{display:flex;align-items:flex-end;justify-content:space-around;height:100%;gap:6px;padding-top:20px}
+.bar-item{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1}
+.bar{width:100%;min-width:24px;max-width:40px;border-radius:8px 8px 0 0;transition:height 1s ease-out;position:relative}
+.bar:hover{opacity:.85}
+.bar-label{font-size:9px;color:var(--text3);font-weight:600;white-space:nowrap}
+.bar-val{font-size:10px;color:var(--text2);font-weight:700;position:absolute;top:-18px;left:50%;transform:translateX(-50%)}
+
+/* Donut */
+.donut-wrap{display:flex;align-items:center;justify-content:center;flex-direction:column;height:100%}
+.donut-chart{position:relative;width:180px;height:180px}
+.donut-chart canvas{width:100%;height:100%}
+.donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.donut-center .big{font-size:28px;font-weight:900;color:var(--text)}
+.donut-center .small{font-size:10px;color:var(--text2)}
+.donut-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;justify-content:center}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2);font-weight:600}
+.legend-dot{width:8px;height:8px;border-radius:4px}
+
+/* User Table */
+.table-card{background:var(--card);border-radius:20px;padding:22px;border:1px solid var(--border);margin-bottom:24px}
+.table-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.table-header h3{font-size:14px;font-weight:800}
+.search-box{height:38px;width:240px;background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:0 14px;color:var(--text);font-size:13px;outline:none}
+.search-box:focus{border-color:var(--orange)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 14px;font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
+td{padding:12px 14px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.02)}
+tr:hover td{background:rgba(255,255,255,0.01)}
+.user-cell{display:flex;align-items:center;gap:10px}
+.user-cell .avatar{width:32px;height:32px;border-radius:10px;background:var(--gradient);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff}
+.user-cell img{width:32px;height:32px;border-radius:10px;object-fit:cover}
+.badge{display:inline-flex;padding:3px 10px;border-radius:8px;font-size:10px;font-weight:700}
+.badge.active{background:rgba(74,222,128,0.1);color:var(--green)}
+.badge.blocked{background:rgba(255,107,107,0.1);color:var(--red)}
+.badge.admin{background:rgba(255,140,66,0.1);color:var(--orange)}
+.action-btn{padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:all .2s}
+.action-btn:hover{border-color:var(--orange);color:var(--orange)}
+.action-btn.danger{border-color:rgba(255,107,107,0.2);color:var(--red)}
+.action-btn.danger:hover{background:rgba(255,107,107,0.06)}
+
+/* System */
+.system-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.sys-card{background:var(--card);border-radius:16px;padding:18px;border:1px solid var(--border)}
+.sys-card h4{font-size:12px;color:var(--text2);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+.sys-item{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.02)}
+.sys-item:last-child{border:none}
+.sys-key{font-size:12px;color:var(--text3)}
+.sys-val{font-size:12px;color:var(--text);font-weight:700}
+
+/* Loading */
+.loading{display:flex;align-items:center;justify-content:center;min-height:200px}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Responsive */
+@media(max-width:1200px){.stats-grid{grid-template-columns:repeat(2,1fr)}.charts-row{grid-template-columns:1fr}}
+@media(max-width:768px){.sidebar{width:60px;padding:16px 8px}.logo span{display:none}.nav-item span{display:none}.main{margin-left:60px;padding:16px}.stats-grid{grid-template-columns:1fr}.system-grid{grid-template-columns:1fr}}
+
+/* Tab sections */
+.tab-section{display:none}
+.tab-section.active{display:block}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:fadeUp .4s ease-out forwards}
+.stat-card:nth-child(1){animation-delay:.05s}
+.stat-card:nth-child(2){animation-delay:.1s}
+.stat-card:nth-child(3){animation-delay:.15s}
+.stat-card:nth-child(4){animation-delay:.2s}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <h1>Admin Dashboard</h1>
+    <p>Sign in with your admin credentials</p>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="admin@drinkbuddy.com" value="admin@drinkbuddy.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="Admin1234" value="Admin1234">
+    </div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dash" id="dashboard">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo"><span>🍷</span> Drink Buddy</div>
+    <div class="nav-item active" onclick="switchTab('overview',this)"><div class="nav-icon">📊</div><span>Overview</span></div>
+    <div class="nav-item" onclick="switchTab('users',this)"><div class="nav-icon">👥</div><span>Users</span></div>
+    <div class="nav-item" onclick="switchTab('sessions',this)"><div class="nav-icon">🍻</div><span>Sessions</span></div>
+    <div class="nav-item" onclick="switchTab('system',this)"><div class="nav-icon">⚙️</div><span>System</span></div>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">A</div>
+        <div><div style="font-size:13px;font-weight:700" id="adminName">Admin</div><div style="font-size:10px;color:var(--text3)">Administrator</div></div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="header">
+      <h2 id="pageTitle">Dashboard Overview</h2>
+      <div class="header-right">
+        <div class="time-badge" id="timeDisplay"></div>
+        <button class="refresh-btn" onclick="loadDashboard()">Refresh</button>
+      </div>
+    </div>
+
+    <!-- Overview Tab -->
+    <div class="tab-section active" id="tab-overview">
+      <div class="loading" id="overviewLoading"><div class="spinner"></div></div>
+      <div id="overviewContent" style="display:none">
+        <div class="stats-grid" id="statsGrid"></div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <div class="chart-title">📈 Drink Types Distribution</div>
+            <div class="chart-area"><div class="bar-chart" id="drinkChart"></div></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">⭐ Rating Distribution</div>
+            <div class="chart-area"><div class="donut-wrap" id="ratingChart"></div></div>
+          </div>
+        </div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <div class="chart-title">👥 User Growth (30 Days)</div>
+            <div class="chart-area"><div class="bar-chart" id="growthChart"></div></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">🏆 Top Users</div>
+            <div id="topUsersArea" style="max-height:240px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users Tab -->
+    <div class="tab-section" id="tab-users">
+      <div class="table-card">
+        <div class="table-header">
+          <h3>All Users</h3>
+          <input class="search-box" placeholder="Search users..." oninput="searchUsers(this.value)">
+        </div>
+        <div id="usersTableWrap"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- Sessions Tab -->
+    <div class="tab-section" id="tab-sessions">
+      <div class="table-card">
+        <div class="table-header"><h3>Recent Sessions</h3></div>
+        <div id="sessionsTableWrap"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- System Tab -->
+    <div class="tab-section" id="tab-system">
+      <div id="systemContent"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin + '/api';
+let token = localStorage.getItem('admin_token');
+let dashData = null;
+
+// Time
+setInterval(() => {
+  const d = new Date();
+  const el = document.getElementById('timeDisplay');
+  if (el) el.textContent = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' }) + ' ' + d.toLocaleTimeString();
+}, 1000);
+
+// Auth
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const pass = document.getElementById('loginPass').value;
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('loginError');
+  btn.disabled = true; btn.textContent = 'Signing in...'; err.textContent = '';
+  try {
+    const r = await fetch(API + '/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,password:pass}) });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.message || 'Login failed');
+    if (d.data?.user?.role !== 'admin' && d.data?.role !== 'admin') throw new Error('Admin access required');
+    token = d.data.accessToken;
+    localStorage.setItem('admin_token', token);
+    document.getElementById('adminName').textContent = d.data.user?.firstName || 'Admin';
+    showDashboard();
+  } catch(e) { err.textContent = e.message; }
+  btn.disabled = false; btn.textContent = 'Sign In';
+}
+
+function doLogout() {
+  token = null; localStorage.removeItem('admin_token');
+  document.getElementById('dashboard').classList.remove('active');
+  document.getElementById('loginWrap').style.display = 'flex';
+}
+
+async function showDashboard() {
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('dashboard').classList.add('active');
+  loadDashboard();
+}
+
+async function apiFetch(url) {
+  const r = await fetch(API + url, { headers: { 'Authorization': 'Bearer ' + token } });
+  if (r.status === 401 || r.status === 403) { doLogout(); throw new Error('Session expired'); }
+  return r.json();
+}
+
+// Dashboard
+async function loadDashboard() {
+  document.getElementById('overviewLoading').style.display = 'flex';
+  document.getElementById('overviewContent').style.display = 'none';
+  try {
+    const r = await apiFetch('/admin/dashboard');
+    dashData = r.data;
+    renderOverview();
+  } catch(e) { console.error(e); }
+}
+
+function animateNumber(el, target, duration=1000) {
+  let start = 0; const step = target / (duration / 16);
+  const timer = setInterval(() => {
+    start += step;
+    if (start >= target) { start = target; clearInterval(timer); }
+    el.textContent = Math.round(start).toLocaleString();
+  }, 16);
+}
+
+function renderOverview() {
+  const d = dashData;
+  if (!d) return;
+  document.getElementById('overviewLoading').style.display = 'none';
+  document.getElementById('overviewContent').style.display = 'block';
+
+  // Stats
+  const grid = document.getElementById('statsGrid');
+  const stats = [
+    { label:'Total Users', value:d.users.total, color:'orange', change:`+${d.users.newWeek} this week`, sub:`${d.users.online} online now` },
+    { label:'Total Sessions', value:d.sessions.total, color:'green', change:`+${d.sessions.week} this week`, sub:`${d.sessions.today} today` },
+    { label:'Total Drinks', value:d.sessions.totalDrinks, color:'blue', change:`Avg ${(d.averages.avgDrinks||0).toFixed(1)}/session`, sub:`Rating ${(d.averages.avgRating||0).toFixed(1)}/5` },
+    { label:'Messages', value:d.messages.total, color:'purple', change:`+${d.messages.today} today`, sub:`${d.other.rooms} rooms, ${d.other.favorites} favorites` },
+  ];
+  grid.innerHTML = stats.map((s,i) => `
+    <div class="stat-card animate-in" style="animation-delay:${i*0.08}s">
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-value ${s.color}" data-target="${s.value}">0</div>
+      <div class="stat-change up">${s.change}</div>
+      <div class="stat-sub">${s.sub}</div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.stat-value').forEach(el => animateNumber(el, parseInt(el.dataset.target)));
+
+  // Drink chart
+  const colors = ['#FF8C42','#FFB347','#4ADE80','#5CB8FF','#A78BFA','#FFD700','#FF6B6B','#67E8F9'];
+  const maxDrink = Math.max(...(d.charts.drinkTypes||[]).map(t=>t.count), 1);
+  document.getElementById('drinkChart').innerHTML = (d.charts.drinkTypes||[]).map((t,i) => `
+    <div class="bar-item">
+      <div class="bar" style="height:${(t.count/maxDrink)*90}%;background:${colors[i%colors.length]};animation:fadeUp .6s ease-out ${i*0.08}s forwards;opacity:0">
+        <div class="bar-val">${t.count}</div>
+      </div>
+      <div class="bar-label">${t._id||'Other'}</div>
+    </div>
+  `).join('') || '<div style="text-align:center;color:var(--text3);padding:60px">No data yet</div>';
+
+  // Rating donut
+  const ratingColors = ['#FF6B6B','#FFB347','#FFD700','#4ADE80','#FF8C42'];
+  const ratingData = d.charts.ratings || [];
+  const totalRatings = ratingData.reduce((a,r)=>a+r.count,0) || 1;
+  let donutHTML = '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center">';
+  ratingData.forEach((r,i) => {
+    const pct = Math.round(r.count/totalRatings*100);
+    donutHTML += `<div style="text-align:center"><div style="width:48px;height:48px;border-radius:14px;background:${ratingColors[i]||'#888'}20;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:4px">${'⭐'.repeat(r._id)}</div><div style="font-size:18px;font-weight:900;color:${ratingColors[i]}">${pct}%</div><div style="font-size:9px;color:var(--text3)">${r.count} reviews</div></div>`;
+  });
+  donutHTML += '</div>';
+  if (ratingData.length === 0) donutHTML = '<div style="text-align:center;color:var(--text3);padding:40px">No ratings yet</div>';
+  document.getElementById('ratingChart').innerHTML = donutHTML;
+
+  // Growth chart
+  const growth = d.charts.userGrowth || [];
+  const maxG = Math.max(...growth.map(g=>g.count), 1);
+  document.getElementById('growthChart').innerHTML = growth.length ? growth.map((g,i) => `
+    <div class="bar-item">
+      <div class="bar" style="height:${(g.count/maxG)*85}%;background:linear-gradient(180deg,#FF8C42,#FFB347);animation:fadeUp .6s ease-out ${i*0.05}s forwards;opacity:0">
+        <div class="bar-val">${g.count}</div>
+      </div>
+      <div class="bar-label">${g._id.slice(5)}</div>
+    </div>
+  `).join('') : '<div style="text-align:center;color:var(--text3);padding:60px">No growth data</div>';
+
+  // Top users
+  const topEl = document.getElementById('topUsersArea');
+  topEl.innerHTML = (d.topUsers||[]).map((u,i) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid rgba(255,255,255,0.02)">
+      <div style="width:28px;height:28px;border-radius:10px;background:${colors[i%colors.length]}15;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:${colors[i%colors.length]}">${i+1}</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700">${u.user?.firstName||''} ${u.user?.lastName||''}</div><div style="font-size:10px;color:var(--text3)">${u.user?.email||''}</div></div>
+      <div style="text-align:right"><div style="font-size:14px;font-weight:800;color:var(--orange)">${u.sessionCount}</div><div style="font-size:9px;color:var(--text3)">${u.totalDrinks} drinks</div></div>
+    </div>
+  `).join('') || '<div style="text-align:center;color:var(--text3);padding:40px">No data yet</div>';
+}
+
+// Users
+let allUsers = [];
+async function loadUsers() {
+  document.getElementById('usersTableWrap').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const r = await apiFetch('/admin/users?limit=100');
+    allUsers = r.data.users;
+    renderUsers(allUsers);
+  } catch(e) { console.error(e); }
+}
+
+function renderUsers(users) {
+  if (!users.length) { document.getElementById('usersTableWrap').innerHTML = '<div style="text-align:center;color:var(--text3);padding:40px">No users found</div>'; return; }
+  let html = '<table><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead><tbody>';
+  users.forEach(u => {
+    const initial = (u.firstName||'?')[0].toUpperCase();
+    const status = u.isBlocked ? 'blocked' : 'active';
+    const role = u.role === 'admin' ? 'admin' : 'user';
+    html += `<tr>
+      <td><div class="user-cell">${u.profileImage ? `<img src="${u.profileImage}">` : `<div class="avatar">${initial}</div>`}<div><div style="font-weight:700">${u.firstName||''} ${u.lastName||''}</div></div></div></td>
+      <td style="color:var(--text2)">${u.email}</td>
+      <td><span class="badge ${role}">${role}</span></td>
+      <td><span class="badge ${status}">${status}</span></td>
+      <td style="color:var(--text3);font-size:11px">${new Date(u.createdAt).toLocaleDateString()}</td>
+      <td>
+        <button class="action-btn" onclick="toggleBlock('${u._id}')">${u.isBlocked ? 'Unblock' : 'Block'}</button>
+        ${u.role !== 'admin' ? `<button class="action-btn danger" onclick="deleteUser('${u._id}')">Delete</button>` : ''}
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('usersTableWrap').innerHTML = html;
+}
+
+function searchUsers(q) {
+  const filtered = allUsers.filter(u =>
+    (u.firstName + ' ' + u.lastName + ' ' + u.email).toLowerCase().includes(q.toLowerCase())
+  );
+  renderUsers(filtered);
+}
+
+async function toggleBlock(id) {
+  try { await fetch(API + '/admin/users/' + id + '/block', { method:'PUT', headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}, body:'{}' }); loadUsers(); } catch(e) {}
+}
+
+async function deleteUser(id) {
+  if (!confirm('Delete this user and all their data?')) return;
+  try { await fetch(API + '/admin/users/' + id, { method:'DELETE', headers:{'Authorization':'Bearer '+token} }); loadUsers(); loadDashboard(); } catch(e) {}
+}
+
+// Sessions
+async function loadSessions() {
+  document.getElementById('sessionsTableWrap').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const r = await apiFetch('/admin/sessions?limit=50');
+    const sessions = r.data.sessions || [];
+    if (!sessions.length) { document.getElementById('sessionsTableWrap').innerHTML = '<div style="text-align:center;color:var(--text3);padding:40px">No sessions yet</div>'; return; }
+    let html = '<table><thead><tr><th>User</th><th>Type</th><th>Brand</th><th>Drinks</th><th>Rating</th><th>Duration</th><th>Date</th></tr></thead><tbody>';
+    sessions.forEach(s => {
+      const stars = s.rating ? '⭐'.repeat(s.rating) : '-';
+      html += `<tr>
+        <td style="font-weight:600">${s.user?.firstName||'Unknown'} ${s.user?.lastName||''}</td>
+        <td><span class="badge active">${s.alcoholType||'-'}</span></td>
+        <td style="color:var(--text2)">${s.alcoholName||'-'}</td>
+        <td style="font-weight:800;color:var(--orange)">${s.drinkCount||0}</td>
+        <td>${stars}</td>
+        <td style="color:var(--text3)">${s.duration||0}m</td>
+        <td style="color:var(--text3);font-size:11px">${new Date(s.createdAt).toLocaleDateString()}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('sessionsTableWrap').innerHTML = html;
+  } catch(e) { console.error(e); }
+}
+
+// System
+async function loadSystem() {
+  try {
+    const r = await apiFetch('/admin/system');
+    const d = r.data;
+    const mem = d.server.memory;
+    const upH = Math.floor(d.server.uptime / 3600);
+    const upM = Math.floor((d.server.uptime % 3600) / 60);
+    document.getElementById('systemContent').innerHTML = `
+      <div class="system-grid">
+        <div class="sys-card"><h4>Server</h4>
+          <div class="sys-item"><span class="sys-key">Uptime</span><span class="sys-val">${upH}h ${upM}m</span></div>
+          <div class="sys-item"><span class="sys-key">Node.js</span><span class="sys-val">${d.server.nodeVersion}</span></div>
+          <div class="sys-item"><span class="sys-key">Platform</span><span class="sys-val">${d.server.platform}</span></div>
+          <div class="sys-item"><span class="sys-key">Environment</span><span class="sys-val">${d.environment}</span></div>
+        </div>
+        <div class="sys-card"><h4>Memory</h4>
+          <div class="sys-item"><span class="sys-key">Heap Used</span><span class="sys-val">${(mem.heapUsed/1024/1024).toFixed(1)} MB</span></div>
+          <div class="sys-item"><span class="sys-key">Heap Total</span><span class="sys-val">${(mem.heapTotal/1024/1024).toFixed(1)} MB</span></div>
+          <div class="sys-item"><span class="sys-key">RSS</span><span class="sys-val">${(mem.rss/1024/1024).toFixed(1)} MB</span></div>
+          <div class="sys-item"><span class="sys-key">External</span><span class="sys-val">${(mem.external/1024/1024).toFixed(1)} MB</span></div>
+        </div>
+        <div class="sys-card"><h4>Database</h4>
+          <div class="sys-item"><span class="sys-key">Status</span><span class="sys-val" style="color:${d.database.status==='connected'?'var(--green)':'var(--red)'}">${d.database.status}</span></div>
+          <div class="sys-item"><span class="sys-key">Host</span><span class="sys-val" style="font-size:10px">${d.database.host}</span></div>
+          <div class="sys-item"><span class="sys-key">Database</span><span class="sys-val">${d.database.name}</span></div>
+        </div>
+      </div>`;
+  } catch(e) { console.error(e); }
+}
+
+// Tab switching
+function switchTab(tab, el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.tab-section').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  const titles = { overview:'Dashboard Overview', users:'User Management', sessions:'Drinking Sessions', system:'System Info' };
+  document.getElementById('pageTitle').textContent = titles[tab] || 'Dashboard';
+  if (tab === 'users') loadUsers();
+  if (tab === 'sessions') loadSessions();
+  if (tab === 'system') loadSystem();
+}
+
+// Init
+if (token) {
+  apiFetch('/auth/me').then(r => {
+    if (r.data?.role === 'admin' || r.data?.user?.role === 'admin') {
+      document.getElementById('adminName').textContent = r.data?.firstName || r.data?.user?.firstName || 'Admin';
+      showDashboard();
+    } else doLogout();
+  }).catch(() => doLogout());
+} else {
+  document.getElementById('loginWrap').style.display = 'flex';
+}
+</script>
+</body>
+</html>
