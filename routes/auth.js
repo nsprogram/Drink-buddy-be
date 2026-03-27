@@ -17,7 +17,6 @@ router.post('/login', AuthController.login);
 
 // OTP Login
 router.post('/login-otp', AuthController.requestLoginOTP);
-router.post('/verify-login-otp', AuthController.verifyLoginOTP);
 
 // Google OAuth
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
@@ -50,6 +49,6 @@ router.post('/refresh', AuthController.refreshToken);
 router.post('/logout', protect, AuthController.logout);
 
 // Current user
-router.get('/me', protect, AuthController.getCurrentUser);
+router.get('/me', protect, AuthController.getMe);
 
 module.exports = router;
