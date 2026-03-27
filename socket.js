@@ -174,10 +174,17 @@ function setupSocket(server) {
         const receiver = await User.findById(receiverId);
         if (!receiver) return callback?.({ error: 'User not found' });
 
-        // Check if receiver is in another call
+        // Clean up stale calls older than 2 minutes stuck in 'ringing'
+        const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
+        await Call.updateMany(
+          { status: 'ringing', createdAt: { $lt: twoMinAgo } },
+          { $set: { status: 'missed' } }
+        );
+
+        // Check if receiver is ACTUALLY in an active accepted call (not just ringing)
         const activeCall = await Call.findOne({
           $or: [{ caller: receiverId }, { receiver: receiverId }],
-          status: { $in: ['ringing', 'accepted'] },
+          status: 'accepted', // Only block if truly in a connected call
         });
         if (activeCall) return callback?.({ error: 'User is busy', status: 'busy' });
 
