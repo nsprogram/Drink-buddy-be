@@ -77,4 +77,19 @@ router.get('/:callId', async (req, res) => {
   }
 });
 
+// Delete a call record
+router.delete('/:callId', async (req, res) => {
+  try {
+    const call = await Call.findOneAndDelete({
+      _id: req.params.callId,
+      $or: [{ caller: req.user._id }, { receiver: req.user._id }],
+    });
+    if (!call) return res.status(404).json({ success: false, message: 'Call not found' });
+    res.json({ success: true, message: 'Call deleted' });
+  } catch (error) {
+    console.error('Delete call error:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete call' });
+  }
+});
+
 module.exports = router;
