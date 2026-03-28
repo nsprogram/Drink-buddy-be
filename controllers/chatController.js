@@ -31,7 +31,7 @@ class ChatController {
 
   static async sendMessage(req, res) {
     try {
-      const { recipientId, content, type = 'text', imageUri, replyData, voiceDuration } = req.body;
+      const { recipientId, content, type = 'text', imageUri, videoUri, videoDuration, replyData, voiceDuration } = req.body;
       const senderId = req.user._id;
 
       const recipient = await User.findById(recipientId);
@@ -46,8 +46,11 @@ class ChatController {
 
       const messageData = { sender: senderId, recipient: recipientId, content: content?.trim() || '', type };
 
-      if (type === 'image') {
+      if (type === 'image' && imageUri) {
         messageData.imageUri = imageUri;
+      } else if (type === 'video' && videoUri) {
+        messageData.videoUri = videoUri;
+        messageData.videoDuration = parseInt(videoDuration) || 0;
       } else if (type === 'voice' && req.file) {
         const result = await cloudinary.uploader.upload(req.file.path, {
           folder: 'drinkbuddy/chat/voice', resource_type: 'video'
@@ -305,6 +308,23 @@ class ChatController {
     } catch (error) {
       console.error('Upload voice message error:', error);
       res.status(500).json({ success: false, message: 'Failed to upload voice message' });
+    }
+  }
+
+  static async uploadChatVideo(req, res) {
+    try {
+      if (!req.file) return res.status(400).json({ success: false, message: 'No video file provided' });
+
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'drinkbuddy/chat/videos',
+        resource_type: 'video',
+        transformation: [{ quality: 'auto' }],
+      });
+
+      res.json({ success: true, message: 'Video uploaded', data: { videoUri: result.secure_url, publicId: result.public_id, duration: result.duration || 0 } });
+    } catch (error) {
+      console.error('Upload chat video error:', error);
+      res.status(500).json({ success: false, message: 'Failed to upload video' });
     }
   }
 

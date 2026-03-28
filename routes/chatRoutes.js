@@ -26,7 +26,16 @@ router.delete('/messages/:friendId/clear', ChatController.clearChat);
 router.delete('/messages/:messageId', ChatController.deleteMessage);
 
 // File uploads
+const mediaUpload = multer({
+  dest: require('os').tmpdir(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) cb(null, true);
+    else cb(new Error('Only image/video files allowed'), false);
+  }
+});
 router.post('/upload-image', uploadChat.single('chatImage'), ChatController.uploadChatImage);
+router.post('/upload-video', mediaUpload.single('chatVideo'), ChatController.uploadChatVideo);
 router.post('/upload-voice', voiceUpload.single('voice'), ChatController.uploadVoiceMessage);
 
 // Online status
