@@ -304,7 +304,34 @@ class ChatController {
         folder: 'drinkbuddy/chat/voice', resource_type: 'video'
       });
 
-      res.json({ success: true, message: 'Voice message uploaded successfully', data: { voiceUri: result.secure_url, publicId: result.public_id, duration: result.duration || 0 } });
+      const voiceUri = result.secure_url;
+      const recipientId = req.body.recipientId;
+      const voiceDuration = parseInt(req.body.voiceDuration) || Math.round(result.duration || 0);
+
+      // If recipientId provided, also create a message in DB
+      if (recipientId) {
+        const message = new Message({
+          sender: req.user._id,
+          recipient: recipientId,
+          type: 'voice',
+          voiceUri,
+          voiceDuration,
+          content: '',
+        });
+        await message.save();
+        await message.populate('sender', 'firstName lastName profileImage');
+        await message.populate('recipient', 'firstName lastName profileImage');
+
+        // Emit via socket
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user:${recipientId}`).emit('message:new', message);
+        }
+
+        return res.json({ success: true, message: 'Voice message sent', data: message });
+      }
+
+      res.json({ success: true, message: 'Voice uploaded', data: { voiceUri, publicId: result.public_id, duration: voiceDuration } });
     } catch (error) {
       console.error('Upload voice message error:', error);
       res.status(500).json({ success: false, message: 'Failed to upload voice message' });
