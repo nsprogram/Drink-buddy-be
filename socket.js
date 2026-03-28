@@ -234,7 +234,7 @@ function setupSocket(server) {
 
         callback?.({ success: true, callId: call._id.toString() });
 
-        // Auto-miss after 60 seconds (gives offline users time to come online)
+        // Auto-miss after 45 seconds (matches client-side timeout)
         setTimeout(async () => {
           try {
             const c = await Call.findById(call._id);
@@ -245,7 +245,7 @@ function setupSocket(server) {
               io.to(`user:${receiverId}`).emit('call:missed', { callId: call._id.toString() });
             }
           } catch {}
-        }, 30000);
+        }, 45000);
       } catch (err) {
         console.error('[Socket] call:initiate error:', err);
         callback?.({ error: 'Failed to initiate call' });
