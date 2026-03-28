@@ -61,6 +61,14 @@ function setupSocket(server) {
     // ── Join personal room ──
     socket.join(`user:${userId}`);
 
+    // ── Check if a user is online ──
+    socket.on('user:check-online', async ({ userId: checkId }, callback) => {
+      try {
+        const u = await User.findById(checkId, 'isOnline');
+        callback?.({ isOnline: u?.isOnline || false });
+      } catch { callback?.({ isOnline: false }); }
+    });
+
     // ── Check for pending ringing calls when user comes online ──
     (async () => {
       try {
