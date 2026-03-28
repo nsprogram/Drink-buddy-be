@@ -37,6 +37,30 @@ router.get('/history', async (req, res) => {
   }
 });
 
+// Get call history with a specific friend
+router.get('/history/:friendId', async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const friendId = req.params.friendId;
+
+    const calls = await Call.find({
+      $or: [
+        { caller: userId, receiver: friendId },
+        { caller: friendId, receiver: userId },
+      ],
+    })
+      .populate('caller', 'firstName lastName profileImage')
+      .populate('receiver', 'firstName lastName profileImage')
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    res.json({ success: true, data: calls });
+  } catch (error) {
+    console.error('Get friend call history error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch call history' });
+  }
+});
+
 // Get a specific call
 router.get('/:callId', async (req, res) => {
   try {
