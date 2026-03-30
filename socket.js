@@ -348,6 +348,65 @@ function setupSocket(server) {
     });
 
     // ══════════════════════════
+    //  ROOM EVENTS
+    // ══════════════════════════
+
+    // Join a socket.io room for real-time room updates
+    socket.on('room:join', ({ roomId }) => {
+      socket.join(`room:${roomId}`);
+      console.log(`[Socket] ${userId} joined room channel: ${roomId}`);
+      // Notify others
+      socket.to(`room:${roomId}`).emit('room:user-joined', {
+        userId, roomId,
+        user: { _id: socket.user._id, firstName: socket.user.firstName, lastName: socket.user.lastName, profileImage: socket.user.profileImage },
+      });
+    });
+
+    socket.on('room:leave', ({ roomId }) => {
+      socket.leave(`room:${roomId}`);
+      socket.to(`room:${roomId}`).emit('room:user-left', { userId, roomId });
+    });
+
+    // Room chat message (real-time broadcast)
+    socket.on('room:chat', ({ roomId, message, type }) => {
+      io.to(`room:${roomId}`).emit('room:chat-message', {
+        sender: { _id: socket.user._id, firstName: socket.user.firstName, lastName: socket.user.lastName, profileImage: socket.user.profileImage },
+        message, type: type || 'text',
+        sentAt: new Date(),
+      });
+    });
+
+    // Room cheers/reaction broadcast
+    socket.on('room:cheers', ({ roomId, emoji }) => {
+      io.to(`room:${roomId}`).emit('room:cheers', {
+        userId,
+        user: { _id: socket.user._id, firstName: socket.user.firstName },
+        emoji,
+      });
+    });
+
+    // Drink selection update broadcast
+    socket.on('room:drink-update', ({ roomId, drinkSelection }) => {
+      io.to(`room:${roomId}`).emit('room:drink-updated', {
+        userId, drinkSelection,
+        user: { _id: socket.user._id, firstName: socket.user.firstName },
+      });
+    });
+
+    // Session started/ended broadcast
+    socket.on('room:session-update', ({ roomId, status }) => {
+      io.to(`room:${roomId}`).emit('room:session-changed', { roomId, status, updatedBy: userId });
+    });
+
+    // Safety warning broadcast
+    socket.on('room:safety-warning', ({ roomId, targetUserId, type }) => {
+      io.to(`user:${targetUserId}`).emit('room:safety-alert', {
+        roomId, type,
+        from: { _id: socket.user._id, firstName: socket.user.firstName },
+      });
+    });
+
+    // ══════════════════════════
     //  DISCONNECT
     // ══════════════════════════
     socket.on('disconnect', async () => {
