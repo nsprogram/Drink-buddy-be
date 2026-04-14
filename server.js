@@ -55,10 +55,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Global rate limiting
+// Global rate limiting — generous for mobile apps that batch requests on load
 const globalLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 5000,
   message: { success: false, message: 'Too many requests from this IP, please try again later.' }
 });
 app.use('/api/', globalLimiter);
