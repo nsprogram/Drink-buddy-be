@@ -172,7 +172,7 @@ class SessionController {
     try {
       const userId = req.user._id;
       const { sessionId } = req.params;
-      const { theme, location, participants, sessionName } = req.body;
+      const { theme, location, participants, sessionName, notes } = req.body;
 
       const session = await DrinkingSession.findOne({ _id: sessionId, user: userId, status: 'ended' });
       if (!session) {
@@ -183,11 +183,12 @@ class SessionController {
       const updates = {};
       if (theme !== undefined) updates.theme = theme.trim();
       if (location !== undefined) updates.location = location.trim();
+      if (notes !== undefined) updates.notes = notes.trim().substring(0, 500);
       if (sessionName !== undefined) updates.sessionName = sessionName.trim().substring(0, 100);
       if (Array.isArray(participants)) updates.participants = participants.map(p => String(p).trim()).filter(Boolean);
 
       if (Object.keys(updates).length === 0) {
-        return res.status(400).json({ success: false, message: 'No editable fields provided. Only sessionName, theme, location, and participants can be edited.' });
+        return res.status(400).json({ success: false, message: 'No editable fields provided.' });
       }
 
       await DrinkingSession.findByIdAndUpdate(sessionId, { $set: updates });
