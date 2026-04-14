@@ -55,18 +55,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Global rate limiting — generous for mobile apps that batch requests on load
-const globalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 5000,
-  message: { success: false, message: 'Too many requests from this IP, please try again later.' }
-});
-app.use('/api/', globalLimiter);
-
-// Strict rate limiting for auth endpoints
+// Rate limiting — only on sensitive auth endpoints
+// (No global limiter: Render free tier shares IPs across users via proxy,
+// so a global limiter would block legitimate requests from different users)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15,
+  max: 20,
   message: { success: false, message: 'Too many authentication attempts, please try again later.' }
 });
 app.use('/api/auth/login', authLimiter);
