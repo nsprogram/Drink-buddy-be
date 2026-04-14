@@ -1,8 +1,9 @@
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
-// Generate a 6-digit OTP
+// Generate a 6-digit OTP using cryptographically secure random bytes
 const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 999999).toString();
 };
 
 // HTML email template

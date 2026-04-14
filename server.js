@@ -23,6 +23,15 @@ const roomRoutes = require('./routes/roomRoutes');
 const callRoutes = require('./routes/callRoutes');
 
 
+// ── Validate required env vars ──
+const requiredEnvs = ['MONGODB_URI', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
+for (const env of requiredEnvs) {
+  if (!process.env[env]) {
+    console.error(`❌ Missing required env variable: ${env}`);
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+  }
+}
+
 const app = express();
 const server = http.createServer(app);
 
@@ -46,22 +55,37 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Rate limiting
-// const limiter = rateLimit({
-//   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-//   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
-//   message: { success: false, message: 'Too many requests from this IP, please try again later.' }
-// });
-// app.use('/api/', limiter);
+// Global rate limiting
+const globalLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
+  message: { success: false, message: 'Too many requests from this IP, please try again later.' }
+});
+app.use('/api/', globalLimiter);
+
+// Strict rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { success: false, message: 'Too many authentication attempts, please try again later.' }
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/verify-email', authLimiter);
 
 // Logging
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('combined'));
 }
 
+// Response compression
+const compression = require('compression');
+app.use(compression());
+
 // Body parsing
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Static files
 app.use('/uploads', express.static('uploads'));

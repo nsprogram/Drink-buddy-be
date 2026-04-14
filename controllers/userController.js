@@ -196,7 +196,8 @@ class UserController {
       }
 
       const skip = (page - 1) * limit;
-      const searchRegex = new RegExp(q.trim(), 'i');
+      const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escaped, 'i');
 
       const users = await User.find({
         _id: { $ne: req.user._id },

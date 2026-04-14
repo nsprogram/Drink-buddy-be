@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 const Room = require('../models/Room');
+const { sendSessionCompleteNotification } = require('../utils/notifications');
 
 const populateRoom = (query) => query
   .populate('creator', 'firstName lastName profileImage')
@@ -15,6 +16,17 @@ router.post('/create', protect, async (req, res) => {
     const { name, size, isPrivate, description, category } = req.body;
     if (!name || !size) {
       return res.status(400).json({ success: false, message: 'Name and size are required' });
+    }
+    // Prevent duplicate room names (case-insensitive) among active, non-ended rooms
+    const trimmed = name.trim();
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existing = await Room.findOne({
+      name: { $regex: new RegExp(`^${escaped}$`, 'i') },
+      isActive: true,
+      sessionStatus: { $ne: 'ended' },
+    });
+    if (existing) {
+      return res.status(400).json({ success: false, message: `Room "${existing.name}" already exists. Please choose a different name.` });
     }
     const maxMap = { small: 5, medium: 10, large: 20 };
     const room = await Room.create({
@@ -102,7 +114,7 @@ router.post('/:id/join', protect, async (req, res) => {
 router.post('/join-by-code', protect, async (req, res) => {
   try {
     const { code } = req.body;
-    if (!code || code.length !== 6) {
+    if (!code || !/^[A-Za-z0-9]{6}$/.test(code)) {
       return res.status(400).json({ success: false, message: 'Invalid join code' });
     }
     const room = await Room.findOne({ joinCode: code.toUpperCase(), isActive: true });
@@ -212,6 +224,11 @@ router.post('/:id/start-session', protect, async (req, res) => {
     if (room.sessionStatus === 'active') {
       return res.status(400).json({ success: false, message: 'Session already active' });
     }
+    // All members must have selected a drink
+    const notReady = room.members.filter(m => !m.drinkSelection || !m.drinkSelection.isReady);
+    if (notReady.length > 0) {
+      return res.status(400).json({ success: false, message: `${notReady.length} member(s) haven't selected their drink yet` });
+    }
     room.sessionStatus = 'active';
     room.sessionStartedAt = new Date();
     // Add system message
@@ -237,6 +254,25 @@ router.post('/:id/end-session', protect, async (req, res) => {
     room.sessionEndedAt = new Date();
     room.chatMessages.push({ sender: req.user._id, message: 'Session ended. Thanks everyone! 🎉', type: 'system' });
     await room.save();
+
+    // Send session_complete notification to all members + emit via socket
+    const io = req.app.get('io');
+    const sessionStart = room.sessionStartedAt || room.createdAt;
+    const duration = Math.round((room.sessionEndedAt.getTime() - new Date(sessionStart).getTime()) / 60000);
+    for (const member of room.members) {
+      const memberId = member.user.toString();
+      const drinkCount = member.drinkSelection?.quantity || 1;
+      try {
+        const notif = await sendSessionCompleteNotification(memberId, room.name, duration, drinkCount);
+        // Emit real-time socket notification so frontend updates instantly
+        if (notif && io) {
+          io.to(`user:${memberId}`).emit('notification', notif);
+        }
+      } catch (notifErr) {
+        console.warn('Failed to send session notification to', memberId, notifErr.message);
+      }
+    }
+
     const populated = await populateRoom(Room.findById(room._id));
     res.json({ success: true, message: 'Session ended', data: { room: populated } });
   } catch (error) {
@@ -255,7 +291,10 @@ router.post('/:id/chat', protect, async (req, res) => {
     const isMember = room.members.some(m => m.user.toString() === req.user._id.toString());
     if (!isMember) return res.status(403).json({ success: false, message: 'Not a member' });
 
-    room.chatMessages.push({ sender: req.user._id, message: message.trim(), type: type || 'text' });
+    const sanitized = message.trim()
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/javascript:/gi, '').replace(/on\w+=/gi, '');
+    room.chatMessages.push({ sender: req.user._id, message: sanitized, type: type || 'text' });
     // Keep last 200 messages
     if (room.chatMessages.length > 200) {
       room.chatMessages = room.chatMessages.slice(-200);
@@ -348,6 +387,20 @@ router.post('/:id/kick', protect, async (req, res) => {
   } catch (error) {
     console.error('Kick error:', error);
     res.status(500).json({ success: false, message: 'Failed to kick member' });
+  }
+});
+
+// Clear all rooms created by user (must be before /:id route)
+router.delete('/clear-all', protect, async (req, res) => {
+  try {
+    const result = await Room.updateMany(
+      { creator: req.user._id, isActive: true },
+      { $set: { isActive: false } }
+    );
+    res.json({ success: true, message: `${result.modifiedCount} room(s) removed`, data: { count: result.modifiedCount } });
+  } catch (error) {
+    console.error('Clear rooms error:', error);
+    res.status(500).json({ success: false, message: 'Failed to clear rooms' });
   }
 });
 

@@ -7,15 +7,28 @@ const Call = require('./models/Call');
 // Track connected users: userId -> Set of socketIds
 const connectedUsers = new Map();
 
+// Periodic cleanup of stale entries (every 5 minutes)
+setInterval(() => {
+  for (const [userId, sockets] of connectedUsers) {
+    if (!sockets || sockets.size === 0) {
+      connectedUsers.delete(userId);
+    }
+  }
+}, 5 * 60 * 1000);
+
 function getSocketUrl(userId) {
   const sockets = connectedUsers.get(userId.toString());
   return sockets ? [...sockets] : [];
 }
 
 function setupSocket(server) {
+  const allowedOrigins = process.env.NODE_ENV === 'development'
+    ? true
+    : [process.env.FRONTEND_URL, 'exp://localhost:8081'].filter(Boolean);
+
   const io = new Server(server, {
     cors: {
-      origin: true,
+      origin: allowedOrigins,
       credentials: true,
       methods: ['GET', 'POST'],
     },
@@ -26,7 +39,7 @@ function setupSocket(server) {
   // ── Auth middleware ──
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+      const token = socket.handshake.auth?.token;
       if (!token) return next(new Error('Authentication required'));
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -158,7 +171,9 @@ function setupSocket(server) {
         );
         // Notify the friend that messages were read
         io.to(`user:${friendId}`).emit('chat:read', { readBy: userId });
-      } catch {}
+      } catch (err) {
+        console.warn('[Socket] chat:read error:', err.message);
+      }
     });
 
     // Message edited
@@ -178,7 +193,8 @@ function setupSocket(server) {
         io.to(`user:${recipientId}`).emit('chat:edited', { messageId, content: msg.content });
 
         callback?.({ success: true });
-      } catch {
+      } catch (err) {
+        console.warn('[Socket] chat:edit error:', err.message);
         callback?.({ error: 'Failed to edit' });
       }
     });
@@ -194,7 +210,8 @@ function setupSocket(server) {
 
         io.to(`user:${recipientId}`).emit('chat:deleted', { messageId });
         callback?.({ success: true });
-      } catch {
+      } catch (err) {
+        console.warn('[Socket] chat:delete error:', err.message);
         callback?.({ error: 'Failed to delete' });
       }
     });
@@ -252,7 +269,9 @@ function setupSocket(server) {
               io.to(`user:${userId}`).emit('call:missed', { callId: call._id.toString() });
               io.to(`user:${receiverId}`).emit('call:missed', { callId: call._id.toString() });
             }
-          } catch {}
+          } catch (err) {
+            console.warn('[Socket] Auto-miss timeout error:', err.message);
+          }
         }, 45000);
       } catch (err) {
         console.error('[Socket] call:initiate error:', err);
@@ -274,7 +293,8 @@ function setupSocket(server) {
         io.to(`user:${callerId}`).emit('call:accepted', { callId });
 
         callback?.({ success: true });
-      } catch {
+      } catch (err) {
+        console.warn('[Socket] call:accept error:', err.message);
         callback?.({ error: 'Failed to accept call' });
       }
     });
@@ -294,7 +314,8 @@ function setupSocket(server) {
 
         io.to(`user:${otherUserId}`).emit('call:declined', { callId });
         callback?.({ success: true });
-      } catch {
+      } catch (err) {
+        console.warn('[Socket] call:decline error:', err.message);
         callback?.({ error: 'Failed to decline call' });
       }
     });
@@ -322,7 +343,8 @@ function setupSocket(server) {
         });
 
         callback?.({ success: true, duration: call.duration });
-      } catch {
+      } catch (err) {
+        console.warn('[Socket] call:end error:', err.message);
         callback?.({ error: 'Failed to end call' });
       }
     });
@@ -369,9 +391,14 @@ function setupSocket(server) {
 
     // Room chat message (real-time broadcast)
     socket.on('room:chat', ({ roomId, message, type }) => {
+      if (!message || typeof message !== 'string') return;
+      const sanitized = message.trim()
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/javascript:/gi, '').replace(/on\w+=/gi, '');
+      if (!sanitized) return;
       io.to(`room:${roomId}`).emit('room:chat-message', {
         sender: { _id: socket.user._id, firstName: socket.user.firstName, lastName: socket.user.lastName, profileImage: socket.user.profileImage },
-        message, type: type || 'text',
+        message: sanitized, type: type || 'text',
         sentAt: new Date(),
       });
     });
@@ -450,7 +477,9 @@ function setupSocket(server) {
             reason: 'disconnected',
           });
         }
-      } catch {}
+      } catch (err) {
+        console.warn('[Socket] Disconnect call cleanup error:', err.message);
+      }
     });
   });
 
@@ -470,7 +499,9 @@ async function broadcastOnlineStatus(io, userId, isOnline) {
     for (const friendId of friendIds) {
       io.to(`user:${friendId}`).emit('user:online-status', { userId, isOnline });
     }
-  } catch {}
+  } catch (err) {
+    console.warn('[Socket] broadcastOnlineStatus error:', err.message);
+  }
 }
 
 module.exports = { setupSocket, connectedUsers };
