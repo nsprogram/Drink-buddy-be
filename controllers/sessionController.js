@@ -10,7 +10,7 @@ class SessionController {
   static async startSession(req, res) {
     try {
       const userId = req.user._id;
-      const { alcoholType, alcoholName, drinkLimit } = req.body;
+      const { alcoholType, alcoholName, drinkLimit, sessionName } = req.body;
 
       // Prevent multiple active sessions
       const existing = await DrinkingSession.findOne({ user: userId, status: 'active' });
@@ -31,6 +31,7 @@ class SessionController {
         alcoholType: alcoholType || 'Unknown',
         alcoholName: alcoholName || '',
         drinkLimit: Math.max(0, parseInt(drinkLimit) || 0),
+        sessionName: (sessionName || '').trim().substring(0, 100),
       });
 
       await session.save();
@@ -136,7 +137,7 @@ class SessionController {
     try {
       const userId = req.user._id;
       const { sessionId } = req.params;
-      const { rating, experience, notes, theme, location, participants } = req.body;
+      const { rating, experience, notes, theme, location, participants, sessionName } = req.body;
 
       const session = await DrinkingSession.findOne({ _id: sessionId, user: userId, status: 'ended' });
       if (!session) {
@@ -148,6 +149,7 @@ class SessionController {
       if (notes !== undefined) session.notes = notes.trim().substring(0, 500);
       if (theme !== undefined) session.theme = theme.trim();
       if (location !== undefined) session.location = location.trim();
+      if (sessionName !== undefined) session.sessionName = sessionName.trim().substring(0, 100);
       if (Array.isArray(participants)) session.participants = participants.map(p => String(p).trim()).filter(Boolean);
 
       await session.save();
@@ -170,7 +172,7 @@ class SessionController {
     try {
       const userId = req.user._id;
       const { sessionId } = req.params;
-      const { theme, location, participants } = req.body;
+      const { theme, location, participants, sessionName } = req.body;
 
       const session = await DrinkingSession.findOne({ _id: sessionId, user: userId, status: 'ended' });
       if (!session) {
@@ -181,10 +183,11 @@ class SessionController {
       const updates = {};
       if (theme !== undefined) updates.theme = theme.trim();
       if (location !== undefined) updates.location = location.trim();
+      if (sessionName !== undefined) updates.sessionName = sessionName.trim().substring(0, 100);
       if (Array.isArray(participants)) updates.participants = participants.map(p => String(p).trim()).filter(Boolean);
 
       if (Object.keys(updates).length === 0) {
-        return res.status(400).json({ success: false, message: 'No editable fields provided. Only theme, location, and participants can be edited.' });
+        return res.status(400).json({ success: false, message: 'No editable fields provided. Only sessionName, theme, location, and participants can be edited.' });
       }
 
       await DrinkingSession.findByIdAndUpdate(sessionId, { $set: updates });

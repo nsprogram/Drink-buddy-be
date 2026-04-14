@@ -11,6 +11,12 @@ const drinkingSessionSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  // Session name — editable anytime
+  sessionName: {
+    type: String,
+    default: '',
+    maxlength: 100,
+  },
   // Session lifecycle
   status: {
     type: String,
