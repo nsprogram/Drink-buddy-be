@@ -25,15 +25,34 @@ class UserController {
   // Update user profile
   static async updateProfile(req, res) {
     try {
-      const { firstName, lastName, bio, location, age, dateOfBirth } = req.body;
+      const {
+        firstName, lastName, bio, location, age, dateOfBirth,
+        avatarEmoji, avatarColor, avatarName, profileImage, interestTags,
+      } = req.body;
       const updates = {};
 
-      if (firstName !== undefined) updates.firstName = firstName.trim();
-      if (lastName !== undefined) updates.lastName = lastName.trim();
-      if (bio !== undefined) updates.bio = bio.trim();
-      if (location !== undefined) updates.location = location.trim();
+      if (firstName !== undefined) updates.firstName = String(firstName).trim();
+      if (lastName !== undefined) updates.lastName = String(lastName).trim();
+      if (bio !== undefined) updates.bio = String(bio).trim().substring(0, 500);
+      if (location !== undefined) updates.location = String(location).trim().substring(0, 100);
       if (age !== undefined) updates.age = age;
       if (dateOfBirth !== undefined) updates.dateOfBirth = new Date(dateOfBirth);
+
+      // Avatar fields — client sends null to clear, a value to set
+      if (avatarEmoji !== undefined) updates.avatarEmoji = avatarEmoji || null;
+      if (avatarColor !== undefined) updates.avatarColor = avatarColor || null;
+      if (avatarName !== undefined) updates.avatarName = avatarName || null;
+
+      // Allow clearing profileImage explicitly (when switching to emoji avatar)
+      if (profileImage === null || profileImage === '') updates.profileImage = null;
+
+      // Interest tags (array of strings, max 8)
+      if (Array.isArray(interestTags)) {
+        updates.interestTags = interestTags
+          .map(t => String(t).trim())
+          .filter(Boolean)
+          .slice(0, 8);
+      }
 
       if (updates.firstName || updates.lastName) {
         const current = await User.findById(req.user._id);

@@ -67,6 +67,28 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // ── Emoji avatar (alternative to profileImage) ──
+  avatarEmoji: {
+    type: String,
+    default: null,
+    maxlength: 8,
+  },
+  avatarColor: {
+    type: String,
+    default: null,
+    maxlength: 16,
+  },
+  avatarName: {
+    type: String,
+    default: null,
+    maxlength: 32,
+  },
+  // ── User-selected interest tags (shown on profile) ──
+  interestTags: {
+    type: [String],
+    default: [],
+    validate: [arr => arr.length <= 8, 'Max 8 interest tags'],
+  },
   isEmailVerified: {
     type: Boolean,
     default: false
