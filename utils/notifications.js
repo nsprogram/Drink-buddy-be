@@ -1,11 +1,27 @@
 const Notification = require('../models/Notification');
 
+// ── Shared Socket.io instance ──
+// Set once at startup from server.js: `setIo(io)`
+let _io = null;
+function setIo(ioInstance) { _io = ioInstance; }
+
 /**
- * Create a notification for a user
+ * Create a notification for a user AND emit it live via socket.io.
+ * Returns the created notification document, or null on failure.
  */
 async function createNotification(userId, type, title, body, data = {}) {
   try {
-    return await Notification.create({ user: userId, type, title, body, data });
+    const notif = await Notification.create({ user: userId, type, title, body, data });
+
+    // Emit live to the user's personal socket room so the UI updates without refresh
+    if (_io && notif) {
+      try {
+        _io.to(`user:${userId.toString()}`).emit('notification', notif.toObject ? notif.toObject() : notif);
+      } catch (emitErr) {
+        console.warn('[Notif] socket emit failed:', emitErr.message);
+      }
+    }
+    return notif;
   } catch (err) {
     console.error('Failed to create notification:', err.message);
     return null;
@@ -13,21 +29,18 @@ async function createNotification(userId, type, title, body, data = {}) {
 }
 
 /**
- * Send welcome notification to new user
+ * Welcome notification sent to a new user on successful email verification.
  */
 async function sendWelcomeNotification(userId, firstName) {
   return createNotification(
     userId,
     'welcome',
-    'Welcome to Wine Wizard! 🎉',
-    `Hey ${firstName}! Welcome aboard. Start exploring bars, track your sessions, and connect with friends. Cheers!`,
+    'Welcome to Drink Buddy! 🍻',
+    `Hey ${firstName}! Your account is ready. Track sessions, join rooms, and connect with friends. Cheers!`,
     { action: 'explore' }
   );
 }
 
-/**
- * Send friend request notification
- */
 async function sendFriendRequestNotification(toUserId, fromUser) {
   return createNotification(
     toUserId,
@@ -38,9 +51,6 @@ async function sendFriendRequestNotification(toUserId, fromUser) {
   );
 }
 
-/**
- * Send friend accepted notification
- */
 async function sendFriendAcceptedNotification(toUserId, fromUser) {
   return createNotification(
     toUserId,
@@ -51,22 +61,16 @@ async function sendFriendAcceptedNotification(toUserId, fromUser) {
   );
 }
 
-/**
- * Send message notification
- */
 async function sendMessageNotification(toUserId, fromUser, preview) {
   return createNotification(
     toUserId,
     'message',
     'New message',
-    `${fromUser.firstName}: "${preview.substring(0, 100)}"`,
+    `${fromUser.firstName}: "${(preview || '').substring(0, 100)}"`,
     { fromUserId: fromUser._id }
   );
 }
 
-/**
- * Send achievement notification
- */
 async function sendAchievementNotification(userId, achievementName) {
   return createNotification(
     userId,
@@ -77,11 +81,25 @@ async function sendAchievementNotification(userId, achievementName) {
   );
 }
 
+async function sendSessionCompleteNotification(userId, roomName, duration, drinkCount) {
+  const mins = duration || 0;
+  const durationText = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+  return createNotification(
+    userId,
+    'session_complete',
+    'Session Complete! 🎉',
+    `Your session in "${roomName}" has ended. Duration: ${durationText}, Drinks: ${drinkCount || 0}`,
+    { action: 'view_session_history', roomName }
+  );
+}
+
 module.exports = {
+  setIo,
   createNotification,
   sendWelcomeNotification,
   sendFriendRequestNotification,
   sendFriendAcceptedNotification,
   sendMessageNotification,
   sendAchievementNotification,
+  sendSessionCompleteNotification,
 };

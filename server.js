@@ -39,6 +39,10 @@ const server = http.createServer(app);
 const io = setupSocket(server);
 app.set('io', io);
 
+// Share io with the notification utility so it can emit live notifications
+const notifUtil = require('./utils/notifications');
+notifUtil.setIo(io);
+
 console.log('-------------------------------------------');
 console.log('🚀 DRINKBUDDY BACKEND STARTING');
 console.log('📅 Time:', new Date().toISOString());

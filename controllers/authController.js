@@ -51,6 +51,11 @@ class AuthController {
       const emailSent = await sendEmailVerification(user.email, firstName, otp);
       console.log(`[Auth] Verification email to ${user.email}: ${emailSent ? 'sent' : 'FAILED'}`);
 
+      // Send in-app welcome notification (fires on socket too — delivered when user connects)
+      sendWelcomeNotification(user._id, user.firstName).catch((e) =>
+        console.warn('[Auth] Welcome notification failed:', e?.message)
+      );
+
       res.status(201).json({
         success: true,
         message: emailSent
