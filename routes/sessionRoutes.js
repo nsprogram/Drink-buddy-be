@@ -9,6 +9,7 @@ router.use(protect);
 router.post('/start', SessionController.startSession);
 router.get('/active', SessionController.getActiveSession);
 router.post('/:sessionId/add-drink', SessionController.addDrink);
+router.post('/:sessionId/remove-drink', SessionController.removeDrink);
 router.post('/:sessionId/end', SessionController.endSession);
 router.post('/:sessionId/finalize', SessionController.finalizeSession);
 router.put('/:sessionId/edit', SessionController.editSession);

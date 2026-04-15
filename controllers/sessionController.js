@@ -108,6 +108,50 @@ class SessionController {
     }
   }
 
+  // ── Remove last drink (with confirmation from client) ──
+  static async removeDrink(req, res) {
+    try {
+      const userId = req.user._id;
+      const { sessionId } = req.params;
+
+      const session = await DrinkingSession.findOne({ _id: sessionId, user: userId, status: 'active' });
+      if (!session) {
+        return res.status(404).json({ success: false, message: 'Active session not found' });
+      }
+
+      if (session.drinkCount <= 0) {
+        return res.status(400).json({ success: false, message: 'No drinks to remove' });
+      }
+
+      // Decrement and pop the last entry from drinkLog
+      session.drinkCount = Math.max(0, session.drinkCount - 1);
+      if (session.drinkLog && session.drinkLog.length > 0) {
+        session.drinkLog.pop();
+      }
+      // Reset lastDrinkAt to the previous entry's time (or null if empty)
+      session.lastDrinkAt = session.drinkLog.length > 0
+        ? session.drinkLog[session.drinkLog.length - 1].addedAt
+        : null;
+      await session.save();
+
+      const zone = SessionController._getZone(session.drinkCount, session.drinkLimit);
+
+      res.json({
+        success: true,
+        message: 'Drink removed',
+        data: {
+          session,
+          drinkCount: session.drinkCount,
+          zone,
+          lastDrinkAt: session.lastDrinkAt,
+        },
+      });
+    } catch (error) {
+      console.error('Remove drink error:', error);
+      res.status(500).json({ success: false, message: 'Failed to remove drink' });
+    }
+  }
+
   // ── End session ──
   static async endSession(req, res) {
     try {
