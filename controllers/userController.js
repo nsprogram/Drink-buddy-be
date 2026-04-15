@@ -27,7 +27,7 @@ class UserController {
     try {
       const {
         firstName, lastName, bio, location, age, dateOfBirth,
-        avatarEmoji, avatarColor, avatarName, profileImage, interestTags,
+        avatarId, avatarEmoji, avatarColor, avatarName, profileImage, interestTags,
       } = req.body;
       const updates = {};
 
@@ -39,6 +39,7 @@ class UserController {
       if (dateOfBirth !== undefined) updates.dateOfBirth = new Date(dateOfBirth);
 
       // Avatar fields — client sends null to clear, a value to set
+      if (avatarId !== undefined) updates.avatarId = avatarId || null;
       if (avatarEmoji !== undefined) updates.avatarEmoji = avatarEmoji || null;
       if (avatarColor !== undefined) updates.avatarColor = avatarColor || null;
       if (avatarName !== undefined) updates.avatarName = avatarName || null;

@@ -68,6 +68,11 @@ const userSchema = new mongoose.Schema({
     default: ''
   },
   // ── Emoji avatar (alternative to profileImage) ──
+  avatarId: {
+    type: String,
+    default: null,
+    maxlength: 32,
+  },
   avatarEmoji: {
     type: String,
     default: null,
