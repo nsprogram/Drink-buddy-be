@@ -31,7 +31,7 @@ class ChatController {
 
   static async sendMessage(req, res) {
     try {
-      const { recipientId, content, type = 'text', imageUri, videoUri, videoDuration, replyData, voiceDuration } = req.body;
+      const { recipientId, content, type = 'text', imageUri, videoUri, videoDuration, replyData, voiceUri, voiceDuration } = req.body;
       const senderId = req.user._id;
 
       const recipient = await User.findById(recipientId);
@@ -43,6 +43,12 @@ class ChatController {
       if (type === 'image' && !imageUri) {
         return res.status(400).json({ success: false, message: 'Image URI is required for image messages' });
       }
+      if (type === 'voice' && !voiceUri && !req.file) {
+        return res.status(400).json({ success: false, message: 'Voice URI is required for voice messages' });
+      }
+      if (type === 'video' && !videoUri) {
+        return res.status(400).json({ success: false, message: 'Video URI is required for video messages' });
+      }
 
       const messageData = { sender: senderId, recipient: recipientId, content: content?.trim() || '', type };
 
@@ -51,11 +57,18 @@ class ChatController {
       } else if (type === 'video' && videoUri) {
         messageData.videoUri = videoUri;
         messageData.videoDuration = parseInt(videoDuration) || 0;
-      } else if (type === 'voice' && req.file) {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: 'drinkbuddy/chat/voice', resource_type: 'video'
-        });
-        messageData.voiceUri = result.secure_url;
+      } else if (type === 'voice') {
+        // Two paths:
+        //  (a) Multipart upload: req.file present → upload to Cloudinary here
+        //  (b) JSON body: voiceUri already uploaded (via /chat/upload-voice) → use directly
+        if (req.file) {
+          const result = await cloudinary.uploader.upload(req.file.path, {
+            folder: 'drinkbuddy/chat/voice', resource_type: 'video'
+          });
+          messageData.voiceUri = result.secure_url;
+        } else if (voiceUri) {
+          messageData.voiceUri = voiceUri;
+        }
         messageData.voiceDuration = parseInt(voiceDuration) || 0;
       }
 
