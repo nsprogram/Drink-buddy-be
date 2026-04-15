@@ -85,10 +85,23 @@ const drinkingSessionSchema = new mongoose.Schema({
   theme: {
     type: String,
     default: '',
+    maxlength: 50,
   },
   location: {
     type: String,
     default: '',
+  },
+  // Budget for this session (in user's local currency, no decimals)
+  budget: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  // Optional: actual amount spent (for future budget vs actual feature)
+  actualSpent: {
+    type: Number,
+    default: 0,
+    min: 0,
   },
   participants: [{
     type: String, // names or user references
