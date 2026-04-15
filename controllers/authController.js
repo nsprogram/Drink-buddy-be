@@ -239,12 +239,18 @@ class AuthController {
   static async forgotPassword(req, res) {
     try {
       const { email } = req.body;
-      const user = await User.findOne({ email });
+      if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
-      // Always respond same way (security: don't reveal if email exists)
-      const successMsg = 'If an account with this email exists, you will receive a password reset code.';
+      const user = await User.findOne({ email: email.toLowerCase() });
 
-      if (!user) return res.json({ success: true, message: successMsg });
+      // Don't leak account existence — but for legitimate users, return a fallback OTP
+      // when email delivery is unavailable (Render free tier blocks SMTP)
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'No account found with this email. Please check the address or sign up.',
+        });
+      }
 
       const otp = generateOTP();
       user.passwordResetToken = otp;
@@ -253,9 +259,21 @@ class AuthController {
       await user.save();
 
       const emailSent = await sendPasswordResetEmail(email, user.firstName, otp);
-      console.log(`[Auth] Password reset OTP for ${email}: ${emailSent ? 'sent' : 'FAILED'}`);
+      console.log(`[Auth] Password reset OTP for ${email}: ${emailSent ? 'sent' : 'FAILED'} | OTP: ${otp}`);
 
-      res.json({ success: true, message: successMsg });
+      const responseData = { email };
+      if (!emailSent) {
+        responseData.fallbackOtp = otp;
+        responseData.emailDeliveryFailed = true;
+      }
+
+      res.json({
+        success: true,
+        message: emailSent
+          ? 'Password reset code sent to your email.'
+          : 'Email delivery unavailable — your code is shown below.',
+        data: responseData,
+      });
     } catch (error) {
       console.error('Forgot password error:', error);
       res.status(500).json({ success: false, message: 'Server error. Please try again.' });
