@@ -49,25 +49,36 @@ class AuthController {
 
       // Send verification email
       const emailSent = await sendEmailVerification(user.email, firstName, otp);
-      console.log(`[Auth] Verification email to ${user.email}: ${emailSent ? 'sent' : 'FAILED'}`);
+      console.log(`[Auth] Verification email to ${user.email}: ${emailSent ? 'sent' : 'FAILED'} | OTP: ${otp}`);
 
       // Send in-app welcome notification (fires on socket too — delivered when user connects)
       sendWelcomeNotification(user._id, user.firstName).catch((e) =>
         console.warn('[Auth] Welcome notification failed:', e?.message)
       );
 
+      // ── Fallback: if email delivery failed, return the OTP in the response so
+      // the user can still complete registration. The frontend will display it
+      // with a friendly notice. This keeps the app usable while no email provider
+      // is configured (Render free tier blocks SMTP; configure BREVO_API_KEY for
+      // production-quality delivery).
+      const responseData = {
+        userId: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        requiresEmailVerification: true,
+      };
+      if (!emailSent) {
+        responseData.fallbackOtp = otp;
+        responseData.emailDeliveryFailed = true;
+      }
+
       res.status(201).json({
         success: true,
         message: emailSent
           ? 'Registration successful! Please check your email for verification code.'
-          : 'Registration successful! Verification code could not be sent.',
-        data: {
-          userId: user._id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          requiresEmailVerification: true,
-        }
+          : 'Registration successful! Email delivery is unavailable — your code is shown below.',
+        data: responseData,
       });
     } catch (error) {
       console.error('Registration error:', error);
@@ -132,11 +143,21 @@ class AuthController {
       await user.save();
 
       const emailSent = await sendEmailVerification(email, user.firstName, verificationToken);
-      console.log(`[Auth] Resend verification to ${email}: ${emailSent ? 'sent' : 'FAILED'}`);
+      console.log(`[Auth] Resend verification to ${email}: ${emailSent ? 'sent' : 'FAILED'} | OTP: ${verificationToken}`);
+
+      // Same fallback as register — return OTP if email delivery is unavailable
+      const responseData = {};
+      if (!emailSent) {
+        responseData.fallbackOtp = verificationToken;
+        responseData.emailDeliveryFailed = true;
+      }
 
       res.json({
         success: true,
-        message: emailSent ? 'Verification code sent!' : 'Could not send email. Please try again.',
+        message: emailSent
+          ? 'Verification code sent!'
+          : 'Email delivery unavailable — your code is shown below.',
+        data: responseData,
       });
     } catch (error) {
       console.error('Resend verification error:', error);
