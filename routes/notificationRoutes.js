@@ -39,6 +39,24 @@ router.get('/unread-count', protect, async (req, res) => {
   }
 });
 
+// Mark all as read (must be before /:id routes)
+router.put('/read-all', protect, async (req, res) => {
+  try {
+    const result = await Notification.updateMany(
+      { user: req.user._id, read: false },
+      { read: true, readAt: new Date() }
+    );
+    res.json({ 
+      success: true, 
+      message: 'All notifications marked as read',
+      data: { modifiedCount: result.modifiedCount }
+    });
+  } catch (err) {
+    console.error('Error marking all as read:', err);
+    res.status(500).json({ success: false, message: 'Failed to mark all as read' });
+  }
+});
+
 // Get single notification
 router.get('/:id', protect, async (req, res) => {
   try {
@@ -65,20 +83,23 @@ router.put('/:id/read', protect, async (req, res) => {
     }
     res.json({ success: true, message: 'Marked as read', data: { notification } });
   } catch (err) {
+    console.error('Error marking notification as read:', err);
     res.status(500).json({ success: false, message: 'Failed to mark as read' });
   }
 });
 
-// Mark all as read
-router.put('/read-all', protect, async (req, res) => {
+// Delete all (must be before /:id route)
+router.delete('/all', protect, async (req, res) => {
   try {
-    await Notification.updateMany(
-      { user: req.user._id, read: false },
-      { read: true, readAt: new Date() }
-    );
-    res.json({ success: true, message: 'All notifications marked as read' });
+    const result = await Notification.deleteMany({ user: req.user._id });
+    res.json({ 
+      success: true, 
+      message: 'All notifications deleted',
+      data: { deletedCount: result.deletedCount }
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to mark all as read' });
+    console.error('Error deleting all notifications:', err);
+    res.status(500).json({ success: false, message: 'Failed to delete notifications' });
   }
 });
 
@@ -89,19 +110,10 @@ router.delete('/:id', protect, async (req, res) => {
     if (!notification) {
       return res.status(404).json({ success: false, message: 'Notification not found' });
     }
-    res.json({ success: true, message: 'Notification deleted' });
+    res.json({ success: true, message: 'Notification deleted', data: { notification } });
   } catch (err) {
+    console.error('Error deleting notification:', err);
     res.status(500).json({ success: false, message: 'Failed to delete notification' });
-  }
-});
-
-// Delete all
-router.delete('/', protect, async (req, res) => {
-  try {
-    await Notification.deleteMany({ user: req.user._id });
-    res.json({ success: true, message: 'All notifications deleted' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to delete notifications' });
   }
 });
 
