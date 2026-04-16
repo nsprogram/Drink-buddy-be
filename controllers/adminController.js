@@ -257,6 +257,20 @@ exports.getRooms = async (req, res) => {
   }
 };
 
+exports.getRoomDetail = async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id)
+      .populate('creator', 'firstName lastName email avatarEmoji avatarColor profileImage')
+      .populate('members.user', 'firstName lastName email avatarEmoji avatarColor profileImage isOnline')
+      .populate('joinRequests.user', 'firstName lastName email avatarEmoji')
+      .populate('chatMessages.sender', 'firstName lastName avatarEmoji');
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    res.json({ success: true, data: room });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.deleteRoom = async (req, res) => {
   try {
     await Room.findByIdAndDelete(req.params.id);

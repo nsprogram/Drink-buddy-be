@@ -22,6 +22,7 @@ router.delete('/sessions/:id', admin.deleteSession);
 
 // Rooms
 router.get('/rooms', admin.getRooms);
+router.get('/rooms/:id', admin.getRoomDetail);
 router.delete('/rooms/:id', admin.deleteRoom);
 
 // Messages
