@@ -215,6 +215,16 @@ exports.getSessions = async (req, res) => {
   }
 };
 
+exports.getSessionDetail = async (req, res) => {
+  try {
+    const session = await DrinkingSession.findById(req.params.id).populate('user', 'firstName lastName email avatarEmoji avatarColor profileImage');
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    res.json({ success: true, data: session });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.deleteSession = async (req, res) => {
   try {
     await DrinkingSession.findByIdAndDelete(req.params.id);

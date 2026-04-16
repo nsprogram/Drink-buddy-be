@@ -17,6 +17,7 @@ router.delete('/users/:id', admin.deleteUser);
 
 // Sessions
 router.get('/sessions', admin.getSessions);
+router.get('/sessions/:id', admin.getSessionDetail);
 router.delete('/sessions/:id', admin.deleteSession);
 
 // Rooms
