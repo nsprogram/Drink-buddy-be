@@ -21,6 +21,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const callRoutes = require('./routes/callRoutes');
+const chatbotRoutes = require('./routes/chatbotRoutes');
 
 
 // ── Validate required env vars ──
@@ -138,6 +139,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/calls', callRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 // admin routes removed
 
 // Health check
