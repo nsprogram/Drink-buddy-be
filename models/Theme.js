@@ -63,6 +63,19 @@ const themeSchema = new mongoose.Schema({
     fontFamilyUrl: { type: String, default: null }, // Optional custom font URL
     baseSize: { type: Number, default: 14 },
     headingSize: { type: Number, default: 24 },
+    fontWeight: { type: String, default: '700' },
+    letterSpacing: { type: Number, default: 0 },
+  },
+
+  // Design language — differentiates the 5 presets beyond just color
+  design: {
+    density: { type: String, enum: ['compact', 'cozy', 'spacious'], default: 'cozy' },
+    shape: { type: String, enum: ['sharp', 'soft', 'round', 'pill'], default: 'soft' },
+    shadow: { type: String, enum: ['none', 'soft', 'medium', 'glow', 'heavy'], default: 'medium' },
+    cardStyle: { type: String, enum: ['flat', 'elevated', 'glass', 'bordered', 'neumorphic'], default: 'elevated' },
+    headerStyle: { type: String, enum: ['minimal', 'gradient', 'glass', 'hero', 'bold'], default: 'minimal' },
+    iconSize: { type: Number, default: 20 },
+    spacing: { type: Number, default: 16 },
   },
 
   // Metadata
