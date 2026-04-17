@@ -84,37 +84,6 @@ const PRESETS = {
     typography: { fontFamily: 'Quicksand', baseSize: 14, headingSize: 26 },
   },
 
-  // 6. CRIMSON GOLD — luxurious, bold, high-end
-  crimson: {
-    mode: 'dark',
-    colors: {
-      bg: '#0A0606', bgCard: '#1A0A0A', bgCardAlt: '#2A1010',
-      primary: '#DC2626', primaryLight: '#FCA5A5', accent: '#FBBF24',
-      text: '#FFFFFF', textSecondary: 'rgba(252,165,165,0.85)', textMuted: 'rgba(252,165,165,0.5)',
-      border: 'rgba(220,38,38,0.2)', iconColor: '#EF4444',
-      success: '#10B981', error: '#DC2626', warning: '#FBBF24', info: '#60A5FA',
-    },
-    header: { height: 68, bgColor: '#0A0606', textColor: '#FFFFFF', gradient: true, gradientColors: ['#0A0606', '#1A0A0A'] },
-    card: { borderRadius: 16, padding: 16, margin: 8, bgColor: '#1A0A0A', borderColor: 'rgba(220,38,38,0.15)', borderWidth: 1 },
-    bottomNav: { bgColor: '#0A0606', activeIconColor: '#DC2626', inactiveIconColor: 'rgba(252,165,165,0.45)', borderColor: 'rgba(220,38,38,0.12)', height: 70 },
-    typography: { fontFamily: 'Playfair Display', baseSize: 14, headingSize: 26 },
-  },
-
-  // 7. LIGHT DAY — clean daytime mode
-  light: {
-    mode: 'light',
-    colors: {
-      bg: '#F8FAFC', bgCard: '#FFFFFF', bgCardAlt: '#F1F5F9',
-      primary: '#F97316', primaryLight: '#FDBA74', accent: '#FB923C',
-      text: '#0F172A', textSecondary: 'rgba(15,23,42,0.72)', textMuted: 'rgba(15,23,42,0.45)',
-      border: 'rgba(15,23,42,0.08)', iconColor: '#F97316',
-      success: '#059669', error: '#DC2626', warning: '#D97706', info: '#2563EB',
-    },
-    header: { height: 64, bgColor: '#FFFFFF', textColor: '#0F172A', gradient: false },
-    card: { borderRadius: 16, padding: 16, margin: 8, bgColor: '#FFFFFF', borderColor: 'rgba(15,23,42,0.08)', borderWidth: 1 },
-    bottomNav: { bgColor: '#FFFFFF', activeIconColor: '#F97316', inactiveIconColor: 'rgba(15,23,42,0.45)', borderColor: 'rgba(15,23,42,0.08)', height: 70 },
-    typography: { fontFamily: 'Poppins', baseSize: 14, headingSize: 24 },
-  },
 };
 
 // GET /api/theme — public, for mobile app to fetch
