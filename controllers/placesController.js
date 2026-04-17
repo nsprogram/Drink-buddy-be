@@ -135,6 +135,7 @@ function formatOpeningHours(opHours) {
 // ── Amenities extracted from OSM tags (all real, all tag-based) ──
 function extractAmenities(tags) {
   const yes = (v) => v === 'yes' || v === 'designated';
+  const only = (v) => v === 'only' || v === 'exclusive';
   return {
     wifi: yes(tags['internet_access']) || yes(tags['wifi']) || tags['internet_access'] === 'wlan',
     outdoorSeating: yes(tags['outdoor_seating']),
@@ -144,12 +145,38 @@ function extractAmenities(tags) {
     reservation: yes(tags['reservation']),
     smoking: tags['smoking'] === 'yes' || tags['smoking'] === 'outside',
     nonSmoking: tags['smoking'] === 'no',
-    vegetarian: yes(tags['diet:vegetarian']),
-    vegan: yes(tags['diet:vegan']),
+    vegetarian: yes(tags['diet:vegetarian']) || only(tags['diet:vegetarian']),
+    vegan: yes(tags['diet:vegan']) || only(tags['diet:vegan']),
     halal: yes(tags['diet:halal']),
     parking: tags['parking'] != null && tags['parking'] !== 'no',
     acceptsCards: yes(tags['payment:credit_cards']) || yes(tags['payment:cards']) || yes(tags['payment:visa']),
   };
+}
+
+// ── Determine veg / non-veg status (Indian FSSAI-style) ──
+function getDietInfo(tags, cuisines) {
+  const only = (v) => v === 'only' || v === 'exclusive';
+  const yes = (v) => v === 'yes' || v === 'designated';
+  const no = (v) => v === 'no';
+
+  const vegOnly = only(tags['diet:vegetarian']) || only(tags['diet:vegan']) || no(tags['diet:meat']);
+  const vegYes = yes(tags['diet:vegetarian']) || yes(tags['diet:vegan']) || vegOnly;
+  const meatYes = yes(tags['diet:meat']);
+  const hasNonVegCuisine = cuisines.some(c => /meat|chicken|beef|kebab|grill|bbq|steak|seafood|fish|non_vegetarian/i.test(c));
+  const hasVegCuisine = cuisines.some(c => /vegetarian|vegan/i.test(c));
+
+  if (vegOnly) return { isPureVeg: true, hasVeg: true, hasNonVeg: false, dietTag: 'pure-veg' };
+  if (vegYes && !meatYes && !hasNonVegCuisine) return { isPureVeg: false, hasVeg: true, hasNonVeg: false, dietTag: 'veg' };
+  if (meatYes || hasNonVegCuisine) {
+    return {
+      isPureVeg: false,
+      hasVeg: vegYes || hasVegCuisine,
+      hasNonVeg: true,
+      dietTag: (vegYes || hasVegCuisine) ? 'both' : 'non-veg',
+    };
+  }
+  // Unknown
+  return { isPureVeg: false, hasVeg: false, hasNonVeg: false, dietTag: null };
 }
 
 // ── Overpass fetch with multi-server fallback ──
@@ -247,6 +274,7 @@ function normalizeOsm(el, userLat, userLng) {
   const shortAddress = [tags['addr:street'], tags['addr:city']].filter(Boolean).join(', ') || tags['addr:city'] || '';
 
   const amenities = extractAmenities(tags);
+  const diet = getDietInfo(tags, cuisines);
 
   return {
     id: `osm-${el.type}-${el.id}`,
@@ -282,6 +310,11 @@ function normalizeOsm(el, userLat, userLng) {
     description: tags.description || tags['description:en'] || null,
     amenities,
     hasAmenities: Object.values(amenities).some(Boolean),
+    // Diet info — veg / non-veg indicators (Indian FSSAI-style)
+    isPureVeg: diet.isPureVeg,
+    hasVeg: diet.hasVeg,
+    hasNonVeg: diet.hasNonVeg,
+    dietTag: diet.dietTag,   // 'pure-veg' | 'veg' | 'non-veg' | 'both' | null
   };
 }
 
