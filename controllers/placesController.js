@@ -52,6 +52,14 @@ const STOCK = {
     'https://images.unsplash.com/photo-1453614512568-c4024d13c247?w=800&q=80',
     'https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=800&q=80',
   ],
+  liquor: [
+    'https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=800&q=80',
+    'https://images.unsplash.com/photo-1568213816046-0ee1c42bd559?w=800&q=80',
+    'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&q=80',
+    'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=800&q=80',
+    'https://images.unsplash.com/photo-1555696958-c5049b866f6d?w=800&q=80',
+    'https://images.unsplash.com/photo-1542990253-a781e04c0082?w=800&q=80',
+  ],
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -161,11 +169,26 @@ async function queryOverpass(query, timeoutMs = 25000) {
   throw lastErr || new Error('Overpass API unavailable');
 }
 
-function categoryForAmenity(amenity) {
-  if (!amenity) return 'restaurant';
-  if (['bar', 'pub', 'biergarten', 'nightclub'].includes(amenity)) return 'bar';
-  if (['cafe', 'coffee_shop'].includes(amenity)) return 'cafe';
+function categoryForElement(tags) {
+  const a = tags.amenity;
+  const s = tags.shop;
+  const c = tags.craft;
+  // Alcohol / liquor shops
+  if (s === 'alcohol' || s === 'wine' || s === 'beverages') return 'liquor';
+  if (c === 'brewery' || c === 'winery' || c === 'distillery') return 'liquor';
+  // Bars
+  if (['bar', 'pub', 'biergarten', 'nightclub'].includes(a)) return 'bar';
+  // Cafes
+  if (['cafe', 'coffee_shop'].includes(a)) return 'cafe';
+  // Fallback
   return 'restaurant';
+}
+
+function typeLabelForCategory(cat) {
+  if (cat === 'bar') return 'Bar';
+  if (cat === 'cafe') return 'Cafe';
+  if (cat === 'liquor') return 'Liquor Store';
+  return 'Restaurant';
 }
 
 // ── Normalize OSM element → place object (REAL DATA ONLY) ──
@@ -178,8 +201,8 @@ function normalizeOsm(el, userLat, userLng) {
   const name = tags.name || tags['name:en'] || tags['brand'];
   if (!name) return null;
 
-  const category = categoryForAmenity(tags.amenity);
-  const typeLabel = category === 'bar' ? 'Bar' : category === 'cafe' ? 'Cafe' : 'Restaurant';
+  const category = categoryForElement(tags);
+  const typeLabel = typeLabelForCategory(category);
 
   const dist = userLat != null && userLng != null
     ? Math.round(distanceMeters(userLat, userLng, lat, lng))
@@ -265,21 +288,50 @@ exports.nearby = async (req, res) => {
 
     const wantedTypes = type
       ? String(type).split(',').map(s => s.trim()).filter(Boolean)
-      : ['bar', 'restaurant', 'cafe'];
+      : ['bar', 'restaurant', 'cafe', 'liquor'];
 
+    // Amenity-based POIs (bars, restaurants, cafes)
     const amenityList = [];
     if (wantedTypes.includes('bar')) amenityList.push('bar', 'pub', 'biergarten', 'nightclub');
     if (wantedTypes.includes('restaurant')) amenityList.push('restaurant', 'fast_food', 'food_court');
     if (wantedTypes.includes('cafe')) amenityList.push('cafe', 'coffee_shop', 'ice_cream');
-    const amenityFilter = amenityList.join('|');
+
+    // Shop-based POIs (alcohol/liquor stores, wine shops, craft breweries)
+    const shopList = [];
+    const craftList = [];
+    if (wantedTypes.includes('liquor') || wantedTypes.includes('shop') || wantedTypes.includes('alcohol')) {
+      shopList.push('alcohol', 'wine', 'beverages');
+      craftList.push('brewery', 'winery', 'distillery');
+    }
+
+    // Build the query with OR between amenity + shop + craft
+    const queryParts = [];
+    if (amenityList.length) {
+      const f = amenityList.join('|');
+      queryParts.push(`node["amenity"~"^(${f})$"]["name"](around:${r},${userLat},${userLng});`);
+      queryParts.push(`way["amenity"~"^(${f})$"]["name"](around:${r},${userLat},${userLng});`);
+    }
+    if (shopList.length) {
+      const f = shopList.join('|');
+      queryParts.push(`node["shop"~"^(${f})$"]["name"](around:${r},${userLat},${userLng});`);
+      queryParts.push(`way["shop"~"^(${f})$"]["name"](around:${r},${userLat},${userLng});`);
+    }
+    if (craftList.length) {
+      const f = craftList.join('|');
+      queryParts.push(`node["craft"~"^(${f})$"]["name"](around:${r},${userLat},${userLng});`);
+      queryParts.push(`way["craft"~"^(${f})$"]["name"](around:${r},${userLat},${userLng});`);
+    }
+
+    if (!queryParts.length) {
+      return res.json({ success: true, data: { places: [], count: 0, summary: { total: 0, bars: 0, restaurants: 0, cafes: 0, liquor: 0, open: 0 }, source: 'openstreetmap' } });
+    }
 
     const query = `
       [out:json][timeout:25];
       (
-        node["amenity"~"^(${amenityFilter})$"]["name"](around:${r},${userLat},${userLng});
-        way["amenity"~"^(${amenityFilter})$"]["name"](around:${r},${userLat},${userLng});
+        ${queryParts.join('\n        ')}
       );
-      out center tags 150;
+      out center tags 200;
     `;
 
     const data = await queryOverpass(query);
@@ -317,6 +369,7 @@ exports.nearby = async (req, res) => {
       bars: places.filter(p => p.category === 'bar').length,
       restaurants: places.filter(p => p.category === 'restaurant').length,
       cafes: places.filter(p => p.category === 'cafe').length,
+      liquor: places.filter(p => p.category === 'liquor').length,
       open: places.filter(p => p.isOpen).length,
     };
 
