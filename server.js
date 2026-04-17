@@ -23,7 +23,6 @@ const roomRoutes = require('./routes/roomRoutes');
 const callRoutes = require('./routes/callRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const themeRoutes = require('./routes/themeRoutes');
 
 
 // ── Validate required env vars ──
@@ -143,7 +142,6 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/theme', themeRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
