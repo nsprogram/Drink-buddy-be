@@ -24,6 +24,7 @@ const callRoutes = require('./routes/callRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const placesRoutes = require('./routes/placesRoutes');
+const healthRoutes = require('./routes/healthRoutes');
 
 
 // ── Validate required env vars ──
@@ -144,6 +145,7 @@ app.use('/api/calls', callRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/places', placesRoutes);
+app.use('/api/health', healthRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
