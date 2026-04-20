@@ -26,6 +26,19 @@ const adminRoutes = require('./routes/adminRoutes');
 const placesRoutes = require('./routes/placesRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 
+// Vendor routes
+const vendorAuthRoutes          = require('./routes/vendor/auth');
+const vendorProfileRoutes       = require('./routes/vendor/profile');
+const vendorVenuesRoutes        = require('./routes/vendor/venues');
+const vendorMenuRoutes          = require('./routes/vendor/menu');
+const vendorPromotionsRoutes    = require('./routes/vendor/promotions');
+const vendorBookingsRoutes      = require('./routes/vendor/bookings');
+const vendorReviewsRoutes       = require('./routes/vendor/reviews');
+const vendorAnalyticsRoutes     = require('./routes/vendor/analytics');
+const vendorInventoryRoutes     = require('./routes/vendor/inventory');
+const vendorTeamRoutes          = require('./routes/vendor/team');
+const vendorNotificationsRoutes = require('./routes/vendor/notifications');
+
 
 // ── Validate required env vars ──
 const requiredEnvs = ['MONGODB_URI', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
@@ -146,6 +159,21 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/health', healthRoutes);
+
+// Vendor API
+app.use('/api/vendor/auth',          vendorAuthRoutes);
+app.use('/api/vendor/profile',       vendorProfileRoutes);
+app.use('/api/vendor/venues',        vendorVenuesRoutes);
+app.use('/api/vendor/menu',          vendorMenuRoutes);
+app.use('/api/vendor/promotions',    vendorPromotionsRoutes);
+app.use('/api/vendor/bookings',      vendorBookingsRoutes);
+app.use('/api/vendor/reviews',       vendorReviewsRoutes);
+app.use('/api/vendor/analytics',     vendorAnalyticsRoutes);
+app.use('/api/vendor/inventory',     vendorInventoryRoutes);
+app.use('/api/vendor/team',          vendorTeamRoutes);
+app.use('/api/vendor/notifications', vendorNotificationsRoutes);
+app.use('/api/vendor/auth/login',    authLimiter);
+app.use('/api/vendor/auth/register', authLimiter);
 
 // Health check
 app.get('/api/health', (req, res) => {
