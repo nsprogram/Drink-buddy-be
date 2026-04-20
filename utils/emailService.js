@@ -194,10 +194,54 @@ const sendWelcomeEmail = async (email, firstName) => {
   );
 };
 
+// ── Vendor-specific email templates ──
+const vendorTemplate = (headerTitle, greeting, bodyText, code) => `
+<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+  <div style="background: #FF9F43; padding: 28px; text-align: center; border-radius: 12px 12px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 26px; letter-spacing: 0.5px;">DrinkBuddy</h1>
+    <div style="color: rgba(255,255,255,0.9); font-size: 13px; margin-top: 4px;">Vendor Portal</div>
+  </div>
+  <div style="padding: 32px; background: #fafafa; border-radius: 0 0 12px 12px; border: 1px solid #eee; border-top: none;">
+    <h2 style="color: #222; margin: 0 0 10px 0; font-size: 20px;">${headerTitle}</h2>
+    <p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 22px 0;">${greeting} ${bodyText}</p>
+    <div style="background: #fff; border: 2px dashed #FF9F43; color: #222; font-size: 32px; font-weight: bold; text-align: center; padding: 18px; border-radius: 10px; letter-spacing: 10px; margin: 0 0 18px 0; font-family: 'Courier New', monospace;">
+      ${code}
+    </div>
+    <p style="color: #888; font-size: 12px; text-align: center; margin: 0 0 20px 0;">
+      This code expires in 10 minutes.
+    </p>
+    <p style="color: #aaa; font-size: 12px; margin: 0; text-align: center;">
+      If you didn't request this, you can safely ignore this email.
+    </p>
+  </div>
+  <div style="text-align: center; padding: 14px;">
+    <p style="color: #bbb; font-size: 10px; margin: 0;">&copy; ${new Date().getFullYear()} DrinkBuddy. All rights reserved.</p>
+  </div>
+</div>
+`;
+
+const sendVendorVerifyEmail = async (email, name, otp) => {
+  return sendMail(
+    email,
+    'DrinkBuddy — verify your email',
+    vendorTemplate('Verify your email', `Hi ${name || 'there'},`, 'Use the 6-digit code below to verify your DrinkBuddy vendor account.', otp)
+  );
+};
+
+const sendVendorResetEmail = async (email, name, otp) => {
+  return sendMail(
+    email,
+    'DrinkBuddy — reset your password',
+    vendorTemplate('Reset your password', `Hi ${name || 'there'},`, 'Use the 6-digit code below to reset your DrinkBuddy vendor password.', otp)
+  );
+};
+
 module.exports = {
   generateOTP,
   sendEmailVerification,
   sendLoginOTP,
   sendPasswordResetEmail,
   sendWelcomeEmail,
+  sendVendorVerifyEmail,
+  sendVendorResetEmail,
 };

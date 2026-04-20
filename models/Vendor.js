@@ -21,6 +21,16 @@ const vendorSchema = new mongoose.Schema({
   isActive:     { type: Boolean, default: true },
   isBlocked:    { type: Boolean, default: false },
   isEmailVerified: { type: Boolean, default: false },
+  isVerified:      { type: Boolean, default: false },
+  emailVerifiedAt: Date,
+
+  emailOtp:        { type: String, select: false },
+  emailOtpExpires: { type: Date,   select: false },
+  otpLastSentAt:   { type: Date,   select: false },
+
+  resetOtp:         { type: String, select: false },
+  resetOtpExpires:  { type: Date,   select: false },
+  resetOtpLastSentAt: { type: Date, select: false },
 
   subscription: {
     tier: { type: String, enum: ['free', 'starter', 'pro', 'enterprise'], default: 'free' },
