@@ -47,6 +47,37 @@ exports.updatePhotos = async (req, res) => {
   res.json({ success: true, data: { venue } });
 };
 
+exports.uploadPhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const photoUrl = req.file.path; // Cloudinary URL
+    
+    // Add the photo to the venue's photos array
+    const venue = await Venue.findOne({ _id: req.params.id, vendor: req.vendorId });
+    if (!venue) {
+      return res.status(404).json({ success: false, message: 'Venue not found' });
+    }
+
+    venue.photos = venue.photos || [];
+    venue.photos.push(photoUrl);
+    await venue.save();
+
+    res.json({ 
+      success: true, 
+      data: { 
+        venue,
+        photoUrl 
+      } 
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ success: false, message: 'Failed to upload photo' });
+  }
+};
+
 exports.updateHours = async (req, res) => {
   const venue = await Venue.findOneAndUpdate(
     { _id: req.params.id, vendor: req.vendorId },
