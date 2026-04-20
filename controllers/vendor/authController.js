@@ -44,19 +44,17 @@ exports.register = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Email already registered' });
     }
 
-    const otp = generateOTP();
-    const expires = new Date(Date.now() + OTP_TTL_MS);
-
     let vendor;
     if (existing && !existing.isVerified) {
-      // Overwrite unverified record with fresh data
       existing.password = password;
       existing.businessName = businessName;
       existing.ownerName = ownerName;
       existing.phone = phone;
-      existing.emailOtp = otp;
-      existing.emailOtpExpires = expires;
-      existing.otpLastSentAt = new Date();
+      existing.isVerified = true;
+      existing.isEmailVerified = true;
+      existing.emailVerifiedAt = new Date();
+      existing.emailOtp = undefined;
+      existing.emailOtpExpires = undefined;
       await existing.save();
       vendor = existing;
     } else {
@@ -66,20 +64,17 @@ exports.register = async (req, res) => {
         businessName,
         ownerName,
         phone,
-        isVerified: false,
-        isEmailVerified: false,
-        emailOtp: otp,
-        emailOtpExpires: expires,
-        otpLastSentAt: new Date(),
+        isVerified: true,
+        isEmailVerified: true,
+        emailVerifiedAt: new Date(),
       });
     }
 
-    const emailed = await sendVendorVerifyEmail(normEmail, ownerName || businessName, otp);
-    if (!emailed) console.warn('[vendor.register] email delivery failed for', normEmail, 'OTP:', otp);
-
-    const resp = { success: true, message: 'OTP sent', email: normEmail };
-    if (!IS_PROD) resp.devOtp = otp;
-    return res.status(201).json(resp);
+    return res.status(201).json({
+      success: true,
+      message: 'Account created. Please sign in.',
+      email: normEmail,
+    });
   } catch (e) {
     console.error('vendor.register', e);
     return res.status(500).json({ success: false, message: e.message });
