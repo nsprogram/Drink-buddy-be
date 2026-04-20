@@ -83,7 +83,7 @@ const venueStorage = new CloudinaryStorage({
     ],
     public_id: (req, file) => {
       const timestamp = Date.now();
-      const vendorId = req.user._id;
+      const vendorId = req.vendor?._id || req.vendorId || req.user?._id || 'unknown';
       const venueId = req.params.id || 'new';
       return `venue_${vendorId}_${venueId}_${timestamp}`;
     }
