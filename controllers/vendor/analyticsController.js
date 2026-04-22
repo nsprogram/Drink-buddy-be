@@ -8,6 +8,8 @@ const toObjId = (v) => new mongoose.Types.ObjectId(v);
 
 exports.summary = async (req, res) => {
   const vendorId = toObjId(req.vendorId);
+  
+  // Get basic counts
   const [venues, bookings, reviews, promos] = await Promise.all([
     Venue.countDocuments({ vendor: vendorId }),
     Booking.countDocuments({ vendor: vendorId }),
@@ -15,30 +17,69 @@ exports.summary = async (req, res) => {
     Promotion.countDocuments({ vendor: vendorId, status: 'active' }),
   ]);
 
+  // Get revenue
   const revenueAgg = await Booking.aggregate([
     { $match: { vendor: vendorId, status: 'completed' } },
     { $group: { _id: null, total: { $sum: '$amount' } } }
   ]);
 
+  // Get average rating
   const ratingAgg = await VendorReview.aggregate([
     { $match: { vendor: vendorId } },
     { $group: { _id: null, avg: { $avg: '$rating' } } }
   ]);
 
+  // Get today's bookings
   const today = new Date(); today.setHours(0,0,0,0);
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
   const todayBookings = await Booking.countDocuments({
     vendor: vendorId, date: { $gte: today, $lt: tomorrow }
   });
 
+  // Get menu items count and stock status
+  const venuesWithMenu = await Venue.find({ vendor: vendorId }).select('menu stats').lean();
+  let menuItems = 0;
+  let availableItems = 0;
+  let outOfStock = 0;
+  let lowStock = 0;
+  let totalViews = 0;
+  
+  venuesWithMenu.forEach(venue => {
+    if (venue.menu && Array.isArray(venue.menu)) {
+      menuItems += venue.menu.length;
+      venue.menu.forEach(item => {
+        if (item.stockStatus === 'in-stock' || item.isAvailable) {
+          availableItems++;
+        } else if (item.stockStatus === 'out-of-stock') {
+          outOfStock++;
+        } else if (item.stockStatus === 'low-stock') {
+          lowStock++;
+        }
+      });
+    }
+    if (venue.stats && venue.stats.views) {
+      totalViews += venue.stats.views;
+    }
+  });
+
   res.json({
     success: true,
     data: {
-      venues, bookings, reviews,
+      venues,
+      bookings,
+      reviews,
+      totalReviews: reviews,
       activePromotions: promos,
       revenue: revenueAgg[0]?.total || 0,
       avgRating: ratingAgg[0]?.avg || 0,
       todayBookings,
+      menuItems,
+      availableItems,
+      outOfStock,
+      lowStock,
+      views: totalViews,
+      likes: 0, // TODO: Implement likes system
+      favorites: 0, // TODO: Implement favorites system
     }
   });
 };

@@ -46,3 +46,22 @@ exports.bulkImport = async (req, res) => {
   await venue.save();
   res.json({ success: true, data: { count: items.length, menu: venue.menu } });
 };
+
+exports.uploadImage = async (req, res) => {
+  try {
+    const venue = await getVenue(req.vendorId, req.params.venueId);
+    if (!venue) return res.status(404).json({ success: false, message: 'Venue not found' });
+    
+    const item = venue.menu.id(req.params.itemId);
+    if (!item) return res.status(404).json({ success: false, message: 'Menu item not found' });
+    
+    if (!req.file) return res.status(400).json({ success: false, message: 'No image file provided' });
+    
+    item.image = req.file.path;
+    await venue.save();
+    
+    res.json({ success: true, data: { imageUrl: req.file.path, item } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

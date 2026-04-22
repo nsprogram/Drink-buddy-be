@@ -90,6 +90,20 @@ const venueStorage = new CloudinaryStorage({
   },
 });
 
+const documentStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'drinkbuddy/vendor-documents',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
+    public_id: (req, file) => {
+      const timestamp = Date.now();
+      const vendorId = req.vendor?._id || req.vendorId || 'unknown';
+      const docType = req.body.type || 'document';
+      return `doc_${vendorId}_${docType}_${timestamp}`;
+    }
+  },
+});
+
 const uploadProfile = multer({
   storage: profileStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -154,6 +168,19 @@ const uploadVenuePhoto = multer({
   }
 });
 
+const uploadDocument = multer({
+  storage: documentStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB for documents
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, and PDF files are allowed.'), false);
+    }
+  }
+});
+
 const deleteFromCloudinary = async (publicId, resourceType = 'image') => {
   try {
     const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
@@ -180,6 +207,8 @@ module.exports = {
   storyStorage,
   uploadVenuePhoto,
   venueStorage,
+  uploadDocument,
+  documentStorage,
   deleteFromCloudinary,
   extractPublicId
 };

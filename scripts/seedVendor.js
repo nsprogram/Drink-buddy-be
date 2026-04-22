@@ -25,7 +25,9 @@ async function main() {
     businessName: 'The Tipsy Fox Group',
     ownerName: 'Alex Morgan',
     phone: '+91 90000 00000',
+    isVerified: true,
     isEmailVerified: true,
+    emailVerifiedAt: new Date(),
     subscription: { tier: 'pro', venueLimit: 10, status: 'active' },
   });
   console.log('Vendor created:', vendor.email);

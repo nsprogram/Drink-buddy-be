@@ -13,9 +13,20 @@ exports.get = async (req, res) => {
 
 exports.create = async (req, res) => {
   const count = await Venue.countDocuments({ vendor: req.vendorId });
-  if (count >= (req.vendor.subscription?.venueLimit || 1)) {
-    return res.status(403).json({ success: false, message: 'Venue limit reached for your subscription tier' });
+  const venueLimit = req.vendor.subscription?.venueLimit || 1;
+  
+  if (count >= venueLimit) {
+    return res.status(403).json({ 
+      success: false, 
+      message: `Venue limit reached. You have ${count} venue(s) and your ${req.vendor.subscription?.tier || 'free'} plan allows ${venueLimit}. Please upgrade your subscription to add more venues.`,
+      data: {
+        currentCount: count,
+        limit: venueLimit,
+        tier: req.vendor.subscription?.tier || 'free'
+      }
+    });
   }
+  
   const venue = await Venue.create({ ...req.body, vendor: req.vendorId });
   res.status(201).json({ success: true, data: { venue } });
 };
@@ -96,4 +107,112 @@ exports.updateAmenities = async (req, res) => {
   );
   if (!venue) return res.status(404).json({ success: false, message: 'Not found' });
   res.json({ success: true, data: { venue } });
+};
+
+exports.uploadLogo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const logoUrl = req.file.path; // Cloudinary URL
+    
+    // Update the venue's logo
+    const venue = await Venue.findOneAndUpdate(
+      { _id: req.params.id, vendor: req.vendorId },
+      { logo: logoUrl },
+      { new: true }
+    );
+    
+    if (!venue) {
+      return res.status(404).json({ success: false, message: 'Venue not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      data: { 
+        venue,
+        logoUrl 
+      } 
+    });
+  } catch (error) {
+    console.error('Upload logo error:', error);
+    res.status(500).json({ success: false, message: 'Failed to upload logo' });
+  }
+};
+
+exports.updateLocation = async (req, res) => {
+  try {
+    const { address, coordinates } = req.body;
+    
+    const updateData = {};
+    if (address) updateData.address = address;
+    if (coordinates) updateData.coordinates = coordinates;
+    
+    const venue = await Venue.findOneAndUpdate(
+      { _id: req.params.id, vendor: req.vendorId },
+      updateData,
+      { new: true }
+    );
+    
+    if (!venue) {
+      return res.status(404).json({ success: false, message: 'Venue not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      data: { venue } 
+    });
+  } catch (error) {
+    console.error('Update location error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update location' });
+  }
+};
+
+exports.updateSocialMedia = async (req, res) => {
+  try {
+    const { socialMedia } = req.body;
+    
+    const venue = await Venue.findOneAndUpdate(
+      { _id: req.params.id, vendor: req.vendorId },
+      { socialMedia },
+      { new: true }
+    );
+    
+    if (!venue) {
+      return res.status(404).json({ success: false, message: 'Venue not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      data: { venue } 
+    });
+  } catch (error) {
+    console.error('Update social media error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update social media' });
+  }
+};
+
+exports.updatePolicies = async (req, res) => {
+  try {
+    const { policies } = req.body;
+    
+    const venue = await Venue.findOneAndUpdate(
+      { _id: req.params.id, vendor: req.vendorId },
+      { policies },
+      { new: true }
+    );
+    
+    if (!venue) {
+      return res.status(404).json({ success: false, message: 'Venue not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      data: { venue } 
+    });
+  } catch (error) {
+    console.error('Update policies error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update policies' });
+  }
 };

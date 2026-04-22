@@ -23,11 +23,13 @@ const roomRoutes = require('./routes/roomRoutes');
 const callRoutes = require('./routes/callRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const adminVendorApplicationRoutes = require('./routes/admin/vendorApplications');
 const placesRoutes = require('./routes/placesRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 
 // Vendor routes
 const vendorAuthRoutes          = require('./routes/vendor/auth');
+const vendorApplicationRoutes   = require('./routes/vendor/application');
 const vendorProfileRoutes       = require('./routes/vendor/profile');
 const vendorVenuesRoutes        = require('./routes/vendor/venues');
 const vendorMenuRoutes          = require('./routes/vendor/menu');
@@ -162,6 +164,7 @@ app.use('/api/health', healthRoutes);
 
 // Vendor API
 app.use('/api/vendor/auth',          vendorAuthRoutes);
+app.use('/api/vendor',               vendorApplicationRoutes); // Application routes
 app.use('/api/vendor/profile',       vendorProfileRoutes);
 app.use('/api/vendor/venues',        vendorVenuesRoutes);
 app.use('/api/vendor/menu',          vendorMenuRoutes);
@@ -174,6 +177,10 @@ app.use('/api/vendor/team',          vendorTeamRoutes);
 app.use('/api/vendor/notifications', vendorNotificationsRoutes);
 app.use('/api/vendor/auth/login',    authLimiter);
 app.use('/api/vendor/auth/register', authLimiter);
+
+// Admin API
+app.use('/api/admin', adminRoutes);
+app.use('/api/admin/vendor-applications', adminVendorApplicationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

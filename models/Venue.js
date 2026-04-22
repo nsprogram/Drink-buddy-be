@@ -3,15 +3,50 @@ const mongoose = require('mongoose');
 const menuItemSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   description: String,
-  category: { type: String, enum: ['beer', 'wine', 'cocktail', 'spirit', 'food', 'non-alcoholic', 'other'], default: 'other' },
+  category: { 
+    type: String, 
+    enum: [
+      'beer', 
+      'wine', 
+      'cocktail', 
+      'spirit', 
+      'food', 
+      'non-alcoholic', 
+      'other',
+      // Additional categories from frontend
+      'signature-cocktails',
+      'premium-whiskey',
+      'craft-beer',
+      'house-specials',
+      'happy-hour',
+      'seasonal-drinks',
+      'food-pairings',
+      'mocktails',
+      'bottles-packages'
+    ], 
+    default: 'other' 
+  },
   price: { type: Number, required: true, min: 0 },
+  discountPrice: { type: Number, min: 0, default: 0 },
   currency: { type: String, default: 'INR' },
+  brand: { type: String, trim: true },
+  servingSize: String,
+  alcoholPercentage: { type: Number, min: 0, max: 100, default: 0 },
   image: String,
+  video: String,
   isAvailable: { type: Boolean, default: true },
   isFeatured: { type: Boolean, default: false },
+  ageRestricted: { type: Boolean, default: false },
+  minAge: { type: Number, min: 0, max: 100, default: 18 },
   tags: [String],
+  allergens: String,
+  dietaryNotes: String,
   abv: Number,
   volume: String,
+  stockStatus: { type: String, enum: ['in-stock', 'low-stock', 'out-of-stock'], default: 'in-stock' },
+  isVegetarian: { type: Boolean, default: false },
+  isVegan: { type: Boolean, default: false },
+  isGlutenFree: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const hoursSchema = new mongoose.Schema({
