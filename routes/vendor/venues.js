@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const c = require('../../controllers/vendor/venuesController');
 const { vendorAuth } = require('../../middleware/vendorAuth');
-const { uploadVenuePhoto } = require('../../config/cloudinary');
+const { uploadVenuePhoto, uploadVenueVideo } = require('../../config/cloudinary');
 
 router.use(vendorAuth);
 router.get('/', c.list);
@@ -12,6 +12,7 @@ router.delete('/:id', c.remove);
 router.put('/:id/photos', c.updatePhotos);
 router.post('/:id/upload-photo', uploadVenuePhoto.single('photo'), c.uploadPhoto);
 router.post('/:id/upload-logo', uploadVenuePhoto.single('logo'), c.uploadLogo);
+router.post('/:id/upload-video', uploadVenueVideo.single('video'), c.uploadVideo);
 router.put('/:id/hours', c.updateHours);
 router.put('/:id/amenities', c.updateAmenities);
 router.put('/:id/social-media', c.updateSocialMedia);

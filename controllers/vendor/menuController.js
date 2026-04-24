@@ -47,11 +47,34 @@ exports.bulkImport = async (req, res) => {
   res.json({ success: true, data: { count: items.length, menu: venue.menu } });
 };
 
+exports.getTags = async (req, res) => {
+  const venue = await getVenue(req.vendorId, req.params.venueId);
+  if (!venue) return res.status(404).json({ success: false, message: 'Venue not found' });
+  const tagSet = new Set();
+  (venue.menu || []).forEach(i => (i.tags || []).forEach(t => t && tagSet.add(t)));
+  res.json({ success: true, data: { tags: Array.from(tagSet).sort() } });
+};
+
+exports.updateStockStatus = async (req, res) => {
+  const venue = await getVenue(req.vendorId, req.params.venueId);
+  if (!venue) return res.status(404).json({ success: false, message: 'Venue not found' });
+  const item = venue.menu.id(req.params.itemId);
+  if (!item) return res.status(404).json({ success: false, message: 'Item not found' });
+  const { stockStatus } = req.body || {};
+  if (!['in-stock', 'low-stock', 'out-of-stock'].includes(stockStatus)) {
+    return res.status(400).json({ success: false, message: 'Invalid stockStatus' });
+  }
+  item.stockStatus = stockStatus;
+  item.isAvailable = stockStatus !== 'out-of-stock';
+  await venue.save();
+  res.json({ success: true, data: { item } });
+};
+
 exports.uploadImage = async (req, res) => {
   try {
     const venue = await getVenue(req.vendorId, req.params.venueId);
     if (!venue) return res.status(404).json({ success: false, message: 'Venue not found' });
-    
+
     const item = venue.menu.id(req.params.itemId);
     if (!item) return res.status(404).json({ success: false, message: 'Menu item not found' });
     

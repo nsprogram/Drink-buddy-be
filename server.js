@@ -40,6 +40,7 @@ const vendorAnalyticsRoutes     = require('./routes/vendor/analytics');
 const vendorInventoryRoutes     = require('./routes/vendor/inventory');
 const vendorTeamRoutes          = require('./routes/vendor/team');
 const vendorNotificationsRoutes = require('./routes/vendor/notifications');
+const vendorSupportRoutes       = require('./routes/vendor/support');
 const funnyMessageRoutes        = require('./routes/funnyMessageRoutes');
 
 
@@ -177,6 +178,7 @@ app.use('/api/vendor/analytics',     vendorAnalyticsRoutes);
 app.use('/api/vendor/inventory',     vendorInventoryRoutes);
 app.use('/api/vendor/team',          vendorTeamRoutes);
 app.use('/api/vendor/notifications', vendorNotificationsRoutes);
+app.use('/api/vendor/support',       vendorSupportRoutes);
 app.use('/api/vendor/auth/login',    authLimiter);
 app.use('/api/vendor/auth/register', authLimiter);
 

@@ -138,7 +138,36 @@ const vendorSchema = new mongoose.Schema({
   
   // Team Management
   team: [teamMemberSchema],
-  
+
+  // In-app notifications (embedded)
+  notifications: [{
+    type: { type: String, default: 'info' },
+    title: String,
+    message: String,
+    link: String,
+    meta: mongoose.Schema.Types.Mixed,
+    read: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now },
+  }],
+
+  // Audit log for profile/compliance changes
+  auditLog: [{
+    action: String,
+    field: String,
+    before: mongoose.Schema.Types.Mixed,
+    after: mongoose.Schema.Types.Mixed,
+    actorEmail: String,
+    at: { type: Date, default: Date.now },
+  }],
+
+  // Terms/compliance acceptance
+  termsAccepted: {
+    accepted: { type: Boolean, default: false },
+    acceptedAt: Date,
+    version: String,
+    ipAddress: String,
+  },
+
   // Metadata
   lastLoginAt: Date,
   deletedAt: Date, // PRD: Soft delete support

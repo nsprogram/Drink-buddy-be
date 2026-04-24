@@ -21,4 +21,34 @@ const vendorReviewSchema = new mongoose.Schema({
   helpfulCount: { type: Number, default: 0 },
 }, { timestamps: true });
 
+// Auto-generate a vendor notification on new review
+vendorReviewSchema.post('save', async function(doc, next) {
+  try {
+    if (!doc.wasNew) return next && next();
+  } catch (e) {}
+  // `wasNew` isn't native; use isNew check in pre-save instead
+  next && next();
+});
+
+vendorReviewSchema.pre('save', function(next) {
+  this.$_wasNew = this.isNew;
+  next();
+});
+
+vendorReviewSchema.post('save', async function(doc) {
+  if (!doc.$_wasNew) return;
+  try {
+    const { pushVendorNotification } = require('../utils/vendorNotify');
+    await pushVendorNotification(doc.vendor, {
+      type: 'review',
+      title: `New ${doc.rating}-star review`,
+      message: (doc.body || '').slice(0, 140),
+      link: `/reviews`,
+      meta: { reviewId: doc._id, venueId: doc.venue, rating: doc.rating },
+    });
+  } catch (e) {
+    console.error('[VendorReview] notify hook failed:', e.message);
+  }
+});
+
 module.exports = mongoose.model('VendorReview', vendorReviewSchema);

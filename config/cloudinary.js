@@ -168,6 +168,30 @@ const uploadVenuePhoto = multer({
   }
 });
 
+const venueVideoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'drinkbuddy/venue-videos',
+    resource_type: 'video',
+    allowed_formats: ['mp4', 'mov', 'avi', 'webm'],
+    public_id: (req, file) => {
+      const timestamp = Date.now();
+      const vendorId = req.vendor?._id || req.vendorId || 'unknown';
+      const venueId = req.params.id || 'new';
+      return `venue_video_${vendorId}_${venueId}_${timestamp}`;
+    }
+  },
+});
+
+const uploadVenueVideo = multer({
+  storage: venueVideoStorage,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) cb(null, true);
+    else cb(new Error('Only video files are allowed.'), false);
+  }
+});
+
 const uploadDocument = multer({
   storage: documentStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB for documents
@@ -207,6 +231,8 @@ module.exports = {
   storyStorage,
   uploadVenuePhoto,
   venueStorage,
+  uploadVenueVideo,
+  venueVideoStorage,
   uploadDocument,
   documentStorage,
   deleteFromCloudinary,

@@ -1,5 +1,6 @@
 const Booking = require('../../models/Booking');
 const Venue   = require('../../models/Venue');
+const { pushVendorNotification } = require('../../utils/vendorNotify');
 
 const ALLOWED = {
   pending:    ['confirmed','cancelled'],
@@ -33,6 +34,13 @@ exports.get = async (req, res) => {
 
 exports.create = async (req, res) => {
   const booking = await Booking.create({ ...req.body, vendor: req.vendorId });
+  pushVendorNotification(req.vendorId, {
+    type: 'booking',
+    title: 'New booking',
+    message: `${booking.guestName || 'Guest'} booked ${booking.partySize || ''} for ${new Date(booking.date).toLocaleDateString()}${booking.time ? ' at ' + booking.time : ''}`,
+    link: `/bookings/${booking._id}`,
+    meta: { bookingId: booking._id, venueId: booking.venue, status: booking.status },
+  });
   res.status(201).json({ success: true, data: { booking } });
 };
 

@@ -79,6 +79,7 @@ const venueSchema = new mongoose.Schema({
   photos: [String],
   coverPhoto: String,
   logo: String,
+  promotionalVideo: String,
   amenities: [String],       // e.g. "wifi","parking","outdoor","livemusic"
   tags: [String],
   priceLevel: { type: Number, min: 1, max: 4, default: 2 },

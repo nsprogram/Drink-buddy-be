@@ -127,7 +127,7 @@ exports.customers = async (req, res) => {
         visits: { $sum: 1 },
         spend: { $sum: '$amount' }
     }},
-    { $sort: { visits: -1 } },
+    { $sort: { spend: -1, visits: -1 } },
     { $limit: 50 }
   ]);
   res.json({ success: true, data: { customers: top } });

@@ -141,6 +141,23 @@ exports.uploadLogo = async (req, res) => {
   }
 };
 
+exports.uploadVideo = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    const videoUrl = req.file.path;
+    const venue = await Venue.findOneAndUpdate(
+      { _id: req.params.id, vendor: req.vendorId },
+      { promotionalVideo: videoUrl },
+      { new: true }
+    );
+    if (!venue) return res.status(404).json({ success: false, message: 'Venue not found' });
+    res.json({ success: true, data: { venue, videoUrl } });
+  } catch (error) {
+    console.error('Upload video error:', error);
+    res.status(500).json({ success: false, message: 'Failed to upload video' });
+  }
+};
+
 exports.updateLocation = async (req, res) => {
   try {
     const { address, coordinates } = req.body;
