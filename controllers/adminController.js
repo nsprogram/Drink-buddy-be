@@ -350,7 +350,10 @@ exports.sendSystemNotification = async (req, res) => {
 // ═══════════════════════════════════════
 exports.getChatbotQueries = async (req, res) => {
   try {
-    const UnmatchedQuery = require('../models/UnmatchedQuery');
+    // Model is registered inside chatbotController — make sure it's loaded, then reuse
+    require('./chatbotController');
+    const mongoose = require('mongoose');
+    const UnmatchedQuery = mongoose.model('UnmatchedQuery');
     const { page = 1, limit = 30, source } = req.query;
     const filter = {};
     if (source) filter.source = source;
@@ -362,7 +365,8 @@ exports.getChatbotQueries = async (req, res) => {
 
     res.json({ success: true, data: { queries, total, page: Number(page), pages: Math.ceil(total / limit) } });
   } catch (err) {
-    // UnmatchedQuery model may not exist
+    console.error('getChatbotQueries error:', err);
+    // Fall back to empty list so admin UI doesn't crash
     res.json({ success: true, data: { queries: [], total: 0, page: 1, pages: 0 } });
   }
 };

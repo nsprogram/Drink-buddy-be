@@ -81,7 +81,6 @@ roomSchema.pre('save', async function (next) {
 roomSchema.index({ creator: 1 });
 roomSchema.index({ isActive: 1 });
 roomSchema.index({ 'members.user': 1 });
-roomSchema.index({ joinCode: 1 });
 roomSchema.index({ sessionStatus: 1 });
 
 module.exports = mongoose.model('Room', roomSchema);
