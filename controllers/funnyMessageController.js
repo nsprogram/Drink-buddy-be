@@ -15,20 +15,35 @@ class FunnyMessageController {
     }
   }
 
-  // Get random active message (for displaying in session)
+  // Get random active message (for displaying in session), filtered by drinkCount and weighted by priority
   static async getRandomMessage(req, res) {
     try {
-      const count = await FunnyMessage.countDocuments({ isActive: true });
-      if (count === 0) {
+      const drinkCount = parseInt(req.query.drinkCount);
+      const filter = { isActive: true };
+
+      if (!isNaN(drinkCount)) {
+        // Include messages where minDrinks/maxDrinks is null OR the drinkCount falls in range
+        filter.$and = [
+          { $or: [{ minDrinks: null }, { minDrinks: { $exists: false } }, { minDrinks: { $lte: drinkCount } }] },
+          { $or: [{ maxDrinks: null }, { maxDrinks: { $exists: false } }, { maxDrinks: { $gte: drinkCount } }] },
+        ];
+      }
+
+      const candidates = await FunnyMessage.find(filter).select('-__v').lean();
+      if (!candidates.length) {
         return res.json({ success: true, data: null });
       }
 
-      const random = Math.floor(Math.random() * count);
-      const message = await FunnyMessage.findOne({ isActive: true })
-        .skip(random)
-        .select('-__v');
-      
-      res.json({ success: true, data: message });
+      // Weighted random pick by priority (higher priority = higher chance)
+      const totalWeight = candidates.reduce((sum, m) => sum + Math.max(1, m.priority || 1), 0);
+      let r = Math.random() * totalWeight;
+      let chosen = candidates[0];
+      for (const m of candidates) {
+        r -= Math.max(1, m.priority || 1);
+        if (r <= 0) { chosen = m; break; }
+      }
+
+      res.json({ success: true, data: chosen });
     } catch (error) {
       console.error('Get random message error:', error);
       res.status(500).json({ success: false, message: 'Failed to fetch message' });
@@ -71,7 +86,7 @@ class FunnyMessageController {
   // Admin: Create new message
   static async createMessage(req, res) {
     try {
-      const { message, emoji, displayTime, category, priority, isActive } = req.body;
+      const { message, emoji, displayTime, category, priority, isActive, triggerAfterDrinks, minDrinks, maxDrinks } = req.body;
 
       if (!message || !message.trim()) {
         return res.status(400).json({ success: false, message: 'Message text is required' });
@@ -79,11 +94,14 @@ class FunnyMessageController {
 
       const newMessage = new FunnyMessage({
         message: message.trim(),
-        emoji: emoji || '😄',
+        emoji: emoji || '🍺',
         displayTime: displayTime || 30,
-        category: category || 'general',
+        triggerAfterDrinks: triggerAfterDrinks || 1,
+        category: category || 'funny',
         priority: priority || 1,
         isActive: isActive !== undefined ? isActive : true,
+        minDrinks: minDrinks === undefined || minDrinks === '' ? null : minDrinks,
+        maxDrinks: maxDrinks === undefined || maxDrinks === '' ? null : maxDrinks,
       });
 
       await newMessage.save();
@@ -98,7 +116,7 @@ class FunnyMessageController {
   static async updateMessage(req, res) {
     try {
       const { messageId } = req.params;
-      const { message, emoji, displayTime, category, priority, isActive } = req.body;
+      const { message, emoji, displayTime, category, priority, isActive, triggerAfterDrinks, minDrinks, maxDrinks } = req.body;
 
       const funnyMessage = await FunnyMessage.findById(messageId);
       if (!funnyMessage) {
@@ -111,6 +129,9 @@ class FunnyMessageController {
       if (category !== undefined) funnyMessage.category = category;
       if (priority !== undefined) funnyMessage.priority = priority;
       if (isActive !== undefined) funnyMessage.isActive = isActive;
+      if (triggerAfterDrinks !== undefined) funnyMessage.triggerAfterDrinks = triggerAfterDrinks;
+      if (minDrinks !== undefined) funnyMessage.minDrinks = minDrinks === '' ? null : minDrinks;
+      if (maxDrinks !== undefined) funnyMessage.maxDrinks = maxDrinks === '' ? null : maxDrinks;
 
       await funnyMessage.save();
       res.json({ success: true, message: 'Message updated', data: funnyMessage });

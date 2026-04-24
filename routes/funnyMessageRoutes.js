@@ -4,8 +4,9 @@ const FunnyMessageController = require('../controllers/funnyMessageController');
 const { protect, adminOnly } = require('../middleware/auth');
 
 // Public routes (for app users) - NO admin required
-router.get('/active', protect, FunnyMessageController.getActiveMessages);
-router.get('/random', protect, FunnyMessageController.getRandomMessage);
+// /random is fully public (no auth) so the mobile app can fetch without token gating
+router.get('/active', FunnyMessageController.getActiveMessages);
+router.get('/random', FunnyMessageController.getRandomMessage);
 
 // Admin routes - require admin privileges
 router.get('/admin/all', protect, adminOnly, FunnyMessageController.getAllMessages);
