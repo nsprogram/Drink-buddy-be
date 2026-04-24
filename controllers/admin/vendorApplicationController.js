@@ -30,7 +30,7 @@ exports.listApplications = async (req, res) => {
     
     const [applications, total] = await Promise.all([
       Vendor.find(query)
-        .select('businessName legalName vendorType email phone status documents createdAt rejectionReason')
+        .select('businessName legalName vendorType ownerName email phone status documents createdAt rejectionReason basicInfoStatus basicInfoRejectionReason basicInfoSubmittedAt basicInfoReviewedAt kycStatus kycRejectionReason kycSubmittedAt kycReviewedAt isBlocked blockedReason suspendedAt isActive isVerified')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -296,31 +296,29 @@ exports.setUnderReview = async (req, res) => {
 
 /**
  * Suspend vendor account
- * PUT /api/admin/vendor-applications/:id/suspend
- * PRD Section 8: Vendor Account Status
+ * POST /api/admin/vendor-applications/:id/suspend
+ * Sets isBlocked=true, blockedReason, suspendedAt, status='suspended' (legacy compat)
  */
 exports.suspendVendor = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
-    
+    const { reason } = req.body || {};
+
     const vendor = await Vendor.findById(id);
-    
     if (!vendor) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Vendor not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
-    
-    // Update status (PRD Section 8)
-    vendor.status = 'suspended';
+
+    const finalReason = (reason && String(reason).trim()) || 'Admin suspended';
+
+    vendor.isBlocked = true;
+    vendor.blockedReason = finalReason;
+    vendor.suspendedAt = new Date();
     vendor.isActive = false;
-    vendor.rejectionReason = reason || 'Account suspended by admin';
-    
+    vendor.status = 'suspended'; // legacy compat
+
     await vendor.save();
-    
-    // Send suspension email
+
     try {
       await sendEmail({
         to: vendor.email,
@@ -328,72 +326,83 @@ exports.suspendVendor = async (req, res) => {
         html: `
           <h2>Account Suspended</h2>
           <p>Dear ${vendor.ownerName || vendor.businessName},</p>
-          <p>Your vendor account has been suspended.</p>
-          ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+          <p>Your vendor account has been suspended by an administrator.</p>
+          <p><strong>Reason:</strong> ${finalReason}</p>
           <p>Please contact support for more information.</p>
         `
       });
     } catch (emailError) {
       console.error('Failed to send suspension email:', emailError);
     }
-    
-    res.json({ 
-      success: true, 
-      message: 'Vendor account suspended',
-      data: { vendor }
-    });
+
+    res.json({ success: true, message: 'Vendor account suspended', data: { vendor } });
   } catch (error) {
     console.error('Suspend vendor error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * Reactivate suspended vendor
- * PUT /api/admin/vendor-applications/:id/reactivate
+ * Unsuspend vendor account
+ * POST /api/admin/vendor-applications/:id/unsuspend
+ * Clears isBlocked, blockedReason, suspendedAt; reverts status based on kycStatus
  */
-exports.reactivateVendor = async (req, res) => {
+exports.unsuspendVendor = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const vendor = await Vendor.findById(id);
-    
     if (!vendor) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Vendor not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
-    
-    if (vendor.status !== 'suspended') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Can only reactivate suspended vendors' 
-      });
-    }
-    
-    vendor.status = 'approved';
+
+    vendor.isBlocked = false;
+    vendor.blockedReason = undefined;
+    vendor.suspendedAt = undefined;
     vendor.isActive = true;
-    vendor.rejectionReason = null;
-    
+
+    // Revert legacy status based on the two-stage state
+    if (vendor.kycStatus === 'kyc_approved') {
+      vendor.status = 'approved';
+    } else if (vendor.kycStatus === 'kyc_pending') {
+      vendor.status = 'under_review';
+    } else if (vendor.kycStatus === 'kyc_rejected') {
+      vendor.status = 'rejected';
+    } else if (vendor.basicInfoStatus === 'basic_approved') {
+      vendor.status = 'under_review';
+    } else if (vendor.basicInfoStatus === 'basic_pending') {
+      vendor.status = 'submitted';
+    } else if (vendor.basicInfoStatus === 'basic_rejected') {
+      vendor.status = 'rejected';
+    } else {
+      vendor.status = 'draft';
+    }
+
     await vendor.save();
-    
-    res.json({ 
-      success: true, 
-      message: 'Vendor account reactivated',
-      data: { vendor }
-    });
+
+    try {
+      await sendEmail({
+        to: vendor.email,
+        subject: 'Account Reactivated - DrinkBuddy Vendor',
+        html: `
+          <h2>Account Reactivated</h2>
+          <p>Dear ${vendor.ownerName || vendor.businessName},</p>
+          <p>Your vendor account has been reactivated. You can now log in again.</p>
+        `
+      });
+    } catch (emailError) {
+      console.error('Failed to send unsuspend email:', emailError);
+    }
+
+    res.json({ success: true, message: 'Vendor account reactivated', data: { vendor } });
   } catch (error) {
-    console.error('Reactivate vendor error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
-    });
+    console.error('Unsuspend vendor error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// Legacy alias
+exports.reactivateVendor = exports.unsuspendVendor;
 
 /**
  * Approve basic info (Stage 1)

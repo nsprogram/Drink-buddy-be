@@ -111,6 +111,8 @@ const vendorSchema = new mongoose.Schema({
   role:         { type: String, enum: ['vendor', 'vendor-manager', 'vendor-staff'], default: 'vendor' },
   isActive:     { type: Boolean, default: true },
   isBlocked:    { type: Boolean, default: false },
+  blockedReason: { type: String },
+  suspendedAt:   { type: Date },
   isEmailVerified: { type: Boolean, default: false },
   isVerified:      { type: Boolean, default: false }, // PRD: isVerified flag
   emailVerifiedAt: Date,

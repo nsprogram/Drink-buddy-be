@@ -22,6 +22,10 @@ router.post('/:id/approve-kyc', c.approveKyc);
 router.post('/:id/reject-kyc', c.rejectKyc);
 
 router.put('/:id/under-review', c.setUnderReview);
+
+// Suspend / unsuspend (POST preferred, PUT kept for legacy compat)
+router.post('/:id/suspend', c.suspendVendor);
+router.post('/:id/unsuspend', c.unsuspendVendor);
 router.put('/:id/suspend', c.suspendVendor);
 router.put('/:id/reactivate', c.reactivateVendor);
 
