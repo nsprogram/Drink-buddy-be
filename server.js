@@ -30,6 +30,8 @@ const healthRoutes = require('./routes/healthRoutes');
 // Vendor routes
 const vendorAuthRoutes          = require('./routes/vendor/auth');
 const vendorApplicationRoutes   = require('./routes/vendor/application');
+const vendorBasicInfoRoutes     = require('./routes/vendor/basicInfo');
+const vendorKycRoutes           = require('./routes/vendor/kyc');
 const vendorProfileRoutes       = require('./routes/vendor/profile');
 const vendorVenuesRoutes        = require('./routes/vendor/venues');
 const vendorMenuRoutes          = require('./routes/vendor/menu');
@@ -167,6 +169,8 @@ app.use('/api/funny-messages', funnyMessageRoutes);
 
 // Vendor API
 app.use('/api/vendor/auth',          vendorAuthRoutes);
+app.use('/api/vendor/basic-info',    vendorBasicInfoRoutes);
+app.use('/api/vendor/kyc',           vendorKycRoutes);
 app.use('/api/vendor',               vendorApplicationRoutes); // Application routes
 app.use('/api/vendor/profile',       vendorProfileRoutes);
 app.use('/api/vendor/venues',        vendorVenuesRoutes);

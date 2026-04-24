@@ -86,7 +86,27 @@ const vendorSchema = new mongoose.Schema({
     index: true
   },
   rejectionReason: String, // PRD: Rejection reason
-  
+
+  // Two-stage approval (Stage 1: basic info, Stage 2: KYC)
+  basicInfoStatus: {
+    type: String,
+    enum: ['not_submitted', 'basic_pending', 'basic_approved', 'basic_rejected'],
+    default: 'not_submitted',
+    index: true
+  },
+  basicInfoRejectionReason: String,
+  basicInfoSubmittedAt: Date,
+  basicInfoReviewedAt: Date,
+  kycStatus: {
+    type: String,
+    enum: ['not_submitted', 'kyc_pending', 'kyc_approved', 'kyc_rejected'],
+    default: 'not_submitted',
+    index: true
+  },
+  kycRejectionReason: String,
+  kycSubmittedAt: Date,
+  kycReviewedAt: Date,
+
   // Flags
   role:         { type: String, enum: ['vendor', 'vendor-manager', 'vendor-staff'], default: 'vendor' },
   isActive:     { type: Boolean, default: true },

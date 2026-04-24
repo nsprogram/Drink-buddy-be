@@ -31,7 +31,7 @@ async function fixVenueLimit() {
     console.log('\nCurrent vendor subscriptions:');
     vendors.forEach(v => {
       console.log(`- ${v.email}: ${v.subscription?.tier || 'free'} tier, ${v.subscription?.venueLimit || 1} venue limit`);
-    });
+    });      
 
     await mongoose.disconnect();
     console.log('\n✅ Done! Backend restart recommended.');

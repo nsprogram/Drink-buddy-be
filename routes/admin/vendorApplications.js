@@ -14,6 +14,13 @@ router.get('/:id', c.getApplication);
 // Application actions
 router.put('/:id/approve', c.approveApplication);
 router.put('/:id/reject', c.rejectApplication);
+
+// Two-stage approval
+router.post('/:id/approve-basic', c.approveBasicInfo);
+router.post('/:id/reject-basic', c.rejectBasicInfo);
+router.post('/:id/approve-kyc', c.approveKyc);
+router.post('/:id/reject-kyc', c.rejectKyc);
+
 router.put('/:id/under-review', c.setUnderReview);
 router.put('/:id/suspend', c.suspendVendor);
 router.put('/:id/reactivate', c.reactivateVendor);

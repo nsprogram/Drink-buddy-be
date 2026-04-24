@@ -396,6 +396,135 @@ exports.reactivateVendor = async (req, res) => {
 };
 
 /**
+ * Approve basic info (Stage 1)
+ * POST /api/admin/vendor-applications/:id/approve-basic
+ */
+exports.approveBasicInfo = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    vendor.basicInfoStatus = 'basic_approved';
+    vendor.basicInfoReviewedAt = new Date();
+    vendor.basicInfoRejectionReason = undefined;
+    await vendor.save();
+
+    try {
+      await sendEmail({
+        to: vendor.email,
+        subject: 'Basic Info Approved - DrinkBuddy Vendor',
+        html: `<h2>Basic Info Approved</h2><p>Dear ${vendor.ownerName || vendor.businessName},</p><p>Your basic business info has been approved. You can now access your dashboard in limited mode and begin KYC submission.</p>`
+      });
+    } catch (e) { console.error('Email failed:', e); }
+
+    res.json({ success: true, message: 'Basic info approved', data: { vendor } });
+  } catch (error) {
+    console.error('Approve basic info error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Reject basic info (Stage 1)
+ * POST /api/admin/vendor-applications/:id/reject-basic
+ */
+exports.rejectBasicInfo = async (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    if (!reason) return res.status(400).json({ success: false, message: 'Rejection reason is required' });
+
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    vendor.basicInfoStatus = 'basic_rejected';
+    vendor.basicInfoRejectionReason = reason;
+    vendor.basicInfoReviewedAt = new Date();
+    await vendor.save();
+
+    try {
+      await sendEmail({
+        to: vendor.email,
+        subject: 'Basic Info Needs Attention - DrinkBuddy Vendor',
+        html: `<h2>Basic Info Rejected</h2><p>Dear ${vendor.ownerName || vendor.businessName},</p><p><strong>Reason:</strong> ${reason}</p><p>Please update your basic info and resubmit.</p>`
+      });
+    } catch (e) { console.error('Email failed:', e); }
+
+    res.json({ success: true, message: 'Basic info rejected', data: { vendor } });
+  } catch (error) {
+    console.error('Reject basic info error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Approve KYC (Stage 2)
+ * POST /api/admin/vendor-applications/:id/approve-kyc
+ */
+exports.approveKyc = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    vendor.kycStatus = 'kyc_approved';
+    vendor.kycReviewedAt = new Date();
+    vendor.kycRejectionReason = undefined;
+    // Legacy back-compat: flip main status/flags
+    vendor.status = 'approved';
+    vendor.isVerified = true;
+    vendor.isActive = true;
+    vendor.rejectionReason = null;
+    vendor.documents.forEach(doc => { doc.status = 'approved'; });
+
+    await vendor.save();
+
+    try {
+      await sendEmail({
+        to: vendor.email,
+        subject: 'KYC Approved - Welcome to DrinkBuddy!',
+        html: `<h2>KYC Approved</h2><p>Dear ${vendor.ownerName || vendor.businessName},</p><p>Your KYC has been approved. Your vendor account is now fully active.</p>`
+      });
+    } catch (e) { console.error('Email failed:', e); }
+
+    res.json({ success: true, message: 'KYC approved', data: { vendor } });
+  } catch (error) {
+    console.error('Approve KYC error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Reject KYC (Stage 2)
+ * POST /api/admin/vendor-applications/:id/reject-kyc
+ */
+exports.rejectKyc = async (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    if (!reason) return res.status(400).json({ success: false, message: 'Rejection reason is required' });
+
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    vendor.kycStatus = 'kyc_rejected';
+    vendor.kycRejectionReason = reason;
+    vendor.kycReviewedAt = new Date();
+    await vendor.save();
+
+    try {
+      await sendEmail({
+        to: vendor.email,
+        subject: 'KYC Needs Attention - DrinkBuddy Vendor',
+        html: `<h2>KYC Rejected</h2><p>Dear ${vendor.ownerName || vendor.businessName},</p><p><strong>Reason:</strong> ${reason}</p><p>Please update your KYC documents and resubmit.</p>`
+      });
+    } catch (e) { console.error('Email failed:', e); }
+
+    res.json({ success: true, message: 'KYC rejected', data: { vendor } });
+  } catch (error) {
+    console.error('Reject KYC error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * Get application statistics
  * GET /api/admin/vendor-applications/stats
  */
