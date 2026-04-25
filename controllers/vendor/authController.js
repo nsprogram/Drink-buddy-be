@@ -44,17 +44,31 @@ exports.register = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Email already registered' });
     }
 
+    // Cooldown enforcement on rapid re-registers of same unverified email
+    if (existing && !existing.isVerified && existing.otpLastSentAt &&
+        (Date.now() - existing.otpLastSentAt.getTime()) < OTP_RESEND_COOLDOWN_MS) {
+      const waitMs = OTP_RESEND_COOLDOWN_MS - (Date.now() - existing.otpLastSentAt.getTime());
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${Math.ceil(waitMs/1000)}s before requesting another code`,
+        retryAfter: Math.ceil(waitMs/1000),
+      });
+    }
+
+    const otp = generateOTP();
+    const otpExpires = new Date(Date.now() + OTP_TTL_MS);
+
     let vendor;
     if (existing && !existing.isVerified) {
       existing.password = password;
       existing.businessName = businessName;
       existing.ownerName = ownerName;
       existing.phone = phone;
-      existing.isVerified = true;
-      existing.isEmailVerified = true;
-      existing.emailVerifiedAt = new Date();
-      existing.emailOtp = undefined;
-      existing.emailOtpExpires = undefined;
+      existing.isVerified = false;
+      existing.isEmailVerified = false;
+      existing.emailOtp = otp;
+      existing.emailOtpExpires = otpExpires;
+      existing.otpLastSentAt = new Date();
       await existing.save();
       vendor = existing;
     } else {
@@ -64,17 +78,24 @@ exports.register = async (req, res) => {
         businessName,
         ownerName,
         phone,
-        isVerified: true,
-        isEmailVerified: true,
-        emailVerifiedAt: new Date(),
+        isVerified: false,
+        isEmailVerified: false,
+        emailOtp: otp,
+        emailOtpExpires: otpExpires,
+        otpLastSentAt: new Date(),
       });
     }
 
-    return res.status(201).json({
+    const emailed = await sendVendorVerifyEmail(vendor.email, vendor.ownerName || vendor.businessName, otp);
+    if (!emailed) console.warn('[vendor.register] email delivery failed for', vendor.email, 'OTP:', otp);
+
+    const resp = {
       success: true,
-      message: 'Account created. Please sign in.',
+      message: 'OTP sent',
       email: normEmail,
-    });
+    };
+    if (!IS_PROD) resp.devOtp = otp;
+    return res.status(201).json(resp);
   } catch (e) {
     console.error('vendor.register', e);
     return res.status(500).json({ success: false, message: e.message });
