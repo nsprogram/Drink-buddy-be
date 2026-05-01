@@ -8,7 +8,7 @@ class UserController {
   static async getProfile(req, res) {
     try {
       const user = await User.findById(req.user._id)
-        .populate('friends.user', 'firstName lastName fullName profileImage bio location isOnline lastSeen')
+        .populate('friends.user', 'firstName lastName fullName profileImage avatarEmoji avatarColor avatarId bio location isOnline lastSeen')
         .select('-password -refreshTokens -emailVerificationToken -passwordResetToken');
 
       if (!user) {
@@ -81,7 +81,7 @@ class UserController {
   static async getFriends(req, res) {
     try {
       const user = await User.findById(req.user._id)
-        .populate('friends.user', 'firstName lastName fullName profileImage bio location isOnline lastSeen');
+        .populate('friends.user', 'firstName lastName fullName profileImage avatarEmoji avatarColor avatarId bio location isOnline lastSeen');
 
       if (!user) {
         return res.status(404).json({ success: false, message: 'User not found' });
@@ -230,7 +230,7 @@ class UserController {
           { email: searchRegex }
         ]
       })
-        .select('firstName lastName fullName profileImage bio location isOnline')
+        .select('firstName lastName fullName profileImage avatarEmoji avatarColor avatarId bio location isOnline')
         .skip(skip)
         .limit(parseInt(limit));
 
