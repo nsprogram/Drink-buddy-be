@@ -488,7 +488,7 @@ class UserController {
       const { userId } = req.params;
 
       const user = await User.findById(userId)
-        .select('firstName lastName fullName profileImage coverImage bio location isOnline lastSeen drinkingStats createdAt');
+        .select('firstName lastName fullName profileImage avatarEmoji avatarColor avatarId coverImage bio location isOnline lastSeen drinkingStats createdAt');
 
       if (!user) {
         return res.status(404).json({ success: false, message: 'User not found' });
