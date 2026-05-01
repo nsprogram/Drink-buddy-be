@@ -109,9 +109,14 @@ class ChatController {
         return res.status(403).json({ success: false, message: 'You can only edit your own messages' });
       }
 
+      // Edit window: 5 minutes after send
       const diffInMinutes = (new Date() - new Date(message.createdAt)) / (1000 * 60);
-      if (diffInMinutes > 10) {
-        return res.status(400).json({ success: false, message: 'Messages can only be edited within 10 minutes' });
+      if (diffInMinutes > 5) {
+        return res.status(400).json({ success: false, message: 'Edit window has expired (5 min)' });
+      }
+      // Once the recipient has read the message, edits are locked
+      if (message.isRead) {
+        return res.status(400).json({ success: false, message: 'Message already read — cannot edit' });
       }
 
       if (!message.originalContent) message.originalContent = message.content;
