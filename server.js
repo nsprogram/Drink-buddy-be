@@ -26,6 +26,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const adminVendorApplicationRoutes = require('./routes/admin/vendorApplications');
 const placesRoutes = require('./routes/placesRoutes');
 const healthRoutes = require('./routes/healthRoutes');
+const drinkCommentRoutes = require('./routes/drinkCommentRoutes');
 
 // Vendor routes
 const vendorAuthRoutes          = require('./routes/vendor/auth');
@@ -166,6 +167,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/funny-messages', funnyMessageRoutes);
+app.use('/api/drink-comments', drinkCommentRoutes);
 
 // Vendor API
 app.use('/api/vendor/auth',          vendorAuthRoutes);
