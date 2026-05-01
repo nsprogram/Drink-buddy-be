@@ -22,6 +22,7 @@ router.post('/send', ChatController.sendMessage);
 router.post('/send-voice', voiceUpload.single('voice'), ChatController.sendMessage);
 router.put('/messages/:messageId/edit', ChatController.editMessage);
 router.post('/messages/:messageId/react', ChatController.addReaction);
+router.post('/messages/:messageId/pin', ChatController.pinMessage);
 router.delete('/messages/:friendId/clear', ChatController.clearChat);
 router.delete('/messages/:messageId', ChatController.deleteMessage);
 

@@ -139,6 +139,45 @@ class ChatController {
     }
   }
 
+  // Toggle pin/unpin a message
+  static async pinMessage(req, res) {
+    try {
+      const { messageId } = req.params;
+      const currentUserId = req.user._id;
+
+      const message = await Message.findById(messageId);
+      if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+
+      // Either sender or recipient may pin
+      const isParticipant =
+        message.sender.toString() === currentUserId.toString() ||
+        message.recipient.toString() === currentUserId.toString();
+      if (!isParticipant) {
+        return res.status(403).json({ success: false, message: 'Not allowed to pin this message' });
+      }
+
+      message.isPinned = !message.isPinned;
+      message.pinnedAt = message.isPinned ? new Date() : null;
+      message.pinnedBy = message.isPinned ? currentUserId : null;
+      await message.save();
+
+      // Notify both sides via socket
+      const io = req.app.get('io');
+      if (io) {
+        const otherId =
+          message.sender.toString() === currentUserId.toString()
+            ? message.recipient.toString()
+            : message.sender.toString();
+        io.to(`user:${otherId}`).emit('chat:pinned', { messageId, isPinned: message.isPinned });
+      }
+
+      res.json({ success: true, data: { messageId, isPinned: message.isPinned } });
+    } catch (error) {
+      console.error('Pin message error:', error);
+      res.status(500).json({ success: false, message: 'Failed to pin message' });
+    }
+  }
+
   static async addReaction(req, res) {
     try {
       const { messageId } = req.params;

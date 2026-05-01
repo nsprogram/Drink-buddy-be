@@ -32,6 +32,9 @@ const messageSchema = new mongoose.Schema({
   originalContent: { type: String, default: null },
   isRead: { type: Boolean, default: false },
   readAt: { type: Date },
+  isPinned: { type: Boolean, default: false },
+  pinnedAt: { type: Date, default: null },
+  pinnedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   timestamp: { type: Date, default: Date.now }
 }, { timestamps: true });
 
