@@ -139,6 +139,35 @@ class ChatController {
     }
   }
 
+  // Search messages between current user + friend by content
+  static async searchMessages(req, res) {
+    try {
+      const { friendId } = req.params;
+      const { q } = req.query;
+      const currentUserId = req.user._id;
+
+      if (!q || !q.trim()) return res.json({ success: true, data: { messages: [] } });
+
+      const safe = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const messages = await Message.find({
+        $or: [
+          { sender: currentUserId, recipient: friendId },
+          { sender: friendId, recipient: currentUserId },
+        ],
+        content: { $regex: safe, $options: 'i' },
+        deleted: { $ne: true },
+      })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean();
+
+      res.json({ success: true, data: { messages, total: messages.length } });
+    } catch (error) {
+      console.error('Search messages error:', error);
+      res.status(500).json({ success: false, message: 'Search failed' });
+    }
+  }
+
   // Toggle pin/unpin a message
   static async pinMessage(req, res) {
     try {
