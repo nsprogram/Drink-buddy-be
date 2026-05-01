@@ -149,12 +149,22 @@ class ChatController {
       if (!q || !q.trim()) return res.json({ success: true, data: { messages: [] } });
 
       const safe = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = { $regex: safe, $options: 'i' };
+      // Treat type keywords as smart filters
+      const lower = q.trim().toLowerCase();
+      const typeFilters = [];
+      if (['photo', 'image', '📷'].includes(lower))            typeFilters.push({ type: 'image' });
+      if (['video', '🎬'].includes(lower))                     typeFilters.push({ type: 'video' });
+      if (['voice', 'audio', '🎤'].includes(lower))            typeFilters.push({ type: 'voice' });
+
+      const orMatch = [{ content: rx }, ...typeFilters];
+
       const messages = await Message.find({
         $or: [
           { sender: currentUserId, recipient: friendId },
           { sender: friendId, recipient: currentUserId },
         ],
-        content: { $regex: safe, $options: 'i' },
+        $and: [{ $or: orMatch }],
         deleted: { $ne: true },
       })
         .sort({ createdAt: -1 })
