@@ -154,12 +154,28 @@ function setupSocket(server) {
       }
     });
 
-    // Typing indicator
+    // Typing indicator (DM)
     socket.on('chat:typing', ({ recipientId, isTyping }) => {
       io.to(`user:${recipientId}`).emit('chat:typing', {
         userId,
         isTyping,
       });
+    });
+
+    // Typing indicator (Group) — broadcast to other group members
+    socket.on('group:typing', async ({ groupId, isTyping, name }) => {
+      try {
+        const Group = require('./models/Group');
+        const g = await Group.findById(groupId).select('members.user');
+        if (!g) return;
+        g.members.forEach(m => {
+          const memberId = String(m.user);
+          if (memberId === String(userId)) return;
+          io.to(`user:${memberId}`).emit('group:typing', { groupId, userId, isTyping, name });
+        });
+      } catch (e) {
+        console.warn('[Socket] group:typing failed:', e.message);
+      }
     });
 
     // Mark messages as read
