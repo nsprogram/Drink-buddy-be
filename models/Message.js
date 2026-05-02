@@ -2,7 +2,10 @@ const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  recipient: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  // Either recipient (DM) OR group (group chat) — exactly one is set
+  recipient: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', default: null, index: true },
+  readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   content: {
     type: String,
     required: function () { return this.type === 'text'; }
