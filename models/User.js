@@ -94,6 +94,31 @@ const userSchema = new mongoose.Schema({
     default: [],
     validate: [arr => arr.length <= 8, 'Max 8 interest tags'],
   },
+
+  // ── Per-user feature permissions (admin-controlled) ──
+  // All default to TRUE so existing users keep full access.
+  permissions: {
+    sessions:      { type: Boolean, default: true }, // Create own drinking sessions
+    rooms:         { type: Boolean, default: true }, // Create rooms + invite friends
+    bars:          { type: Boolean, default: true }, // Explore nearby bars/pubs
+    vendors:       { type: Boolean, default: true }, // View vendor profiles, products, offers
+    healthReport:  { type: Boolean, default: true }, // Health reports + tips
+    chatbot:       { type: Boolean, default: true }, // DrinkBot AI help
+    achievements:  { type: Boolean, default: true }, // Achievements/badges
+    chat:          { type: Boolean, default: true }, // Realtime chat (DM + groups + calls)
+  },
+  // Permission tier label — quick way to mark a user (e.g. 'Type A', 'A-Back', 'Premium')
+  permissionTier: {
+    type: String,
+    default: 'Type A',
+    maxlength: 32,
+  },
+  // Free-form note for admins explaining why permissions were modified
+  permissionNote: {
+    type: String,
+    default: '',
+    maxlength: 500,
+  },
   isEmailVerified: {
     type: Boolean,
     default: false

@@ -14,6 +14,7 @@ router.get('/users', admin.getUsers);
 router.get('/users/:id', admin.getUserDetail);
 router.put('/users/:id', admin.updateUser);
 router.delete('/users/:id', admin.deleteUser);
+router.put('/users/:id/permissions', admin.updateUserPermissions);
 
 // Sessions
 router.get('/sessions', admin.getSessions);

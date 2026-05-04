@@ -178,6 +178,35 @@ exports.updateUser = async (req, res) => {
   }
 };
 
+// Update per-user feature permissions
+exports.updateUserPermissions = async (req, res) => {
+  try {
+    const { permissions, permissionTier, permissionNote } = req.body;
+    const update = {};
+
+    if (permissions && typeof permissions === 'object') {
+      const allowed = ['sessions', 'rooms', 'bars', 'vendors', 'healthReport', 'chatbot', 'achievements', 'chat'];
+      const safe = {};
+      for (const key of allowed) {
+        if (typeof permissions[key] === 'boolean') safe[key] = permissions[key];
+      }
+      // Mongoose nested-object update — merge with existing values
+      Object.entries(safe).forEach(([k, v]) => { update[`permissions.${k}`] = v; });
+    }
+    if (typeof permissionTier === 'string') update.permissionTier = permissionTier.trim().slice(0, 32);
+    if (typeof permissionNote === 'string')  update.permissionNote = permissionNote.trim().slice(0, 500);
+
+    const user = await User.findByIdAndUpdate(req.params.id, { $set: update }, { new: true })
+      .select('firstName lastName email role isBlocked isActive permissions permissionTier permissionNote');
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, data: user });
+  } catch (err) {
+    console.error('[admin] updateUserPermissions:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.deleteUser = async (req, res) => {
   try {
     const userId = req.params.id;
