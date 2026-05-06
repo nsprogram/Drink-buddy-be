@@ -28,6 +28,7 @@ const placesRoutes = require('./routes/placesRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 const drinkCommentRoutes = require('./routes/drinkCommentRoutes');
 const groupRoutes = require('./routes/groupRoutes');
+const pushRoutes = require('./routes/pushRoutes');
 
 // Vendor routes
 const vendorAuthRoutes          = require('./routes/vendor/auth');
@@ -163,6 +164,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/calls', callRoutes);
+app.use('/api/push',  pushRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/places', placesRoutes);

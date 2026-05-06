@@ -95,6 +95,17 @@ const userSchema = new mongoose.Schema({
     validate: [arr => arr.length <= 8, 'Max 8 interest tags'],
   },
 
+  // ── Expo push tokens (one per signed-in device) ──
+  pushTokens: {
+    type: [{
+      token:     { type: String, required: true },
+      platform:  { type: String, enum: ['ios', 'android', 'web'], default: 'android' },
+      addedAt:   { type: Date, default: Date.now },
+      lastUsed:  { type: Date, default: Date.now },
+    }],
+    default: [],
+  },
+
   // ── Per-user feature permissions (admin-controlled) ──
   // All default to TRUE so existing users keep full access.
   permissions: {

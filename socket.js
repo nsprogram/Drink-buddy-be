@@ -89,10 +89,14 @@ function setupSocket(server) {
           receiver: userId,
           status: 'ringing',
           createdAt: { $gt: new Date(Date.now() - 60 * 1000) }, // within last 60s
-        }).populate('caller', 'firstName lastName profileImage');
+        }).populate('caller', 'firstName lastName profileImage avatarEmoji avatarColor');
 
         if (pendingCall) {
           console.log(`[Socket] Delivering pending call to ${userId} from ${pendingCall.caller?.firstName}`);
+          // Tell the caller the ring is now reaching the receiver — flips "Calling…" → "Ringing…"
+          io.to(`user:${pendingCall.caller._id.toString()}`).emit('call:delivered', {
+            callId: pendingCall._id.toString(),
+          });
           socket.emit('call:incoming', {
             callId: pendingCall._id.toString(),
             caller: {
@@ -100,6 +104,8 @@ function setupSocket(server) {
               firstName: pendingCall.caller.firstName,
               lastName: pendingCall.caller.lastName,
               profileImage: pendingCall.caller.profileImage,
+              avatarEmoji: pendingCall.caller.avatarEmoji,
+              avatarColor: pendingCall.caller.avatarColor,
             },
             type: pendingCall.type,
           });
@@ -143,8 +149,30 @@ function setupSocket(server) {
         await message.populate('sender', 'firstName lastName profileImage');
         await message.populate('recipient', 'firstName lastName profileImage');
 
-        // Send to recipient
+        // Send to recipient (in-app)
         io.to(`user:${recipientId}`).emit('chat:receive', message);
+
+        // ── Push notification when recipient is offline / app closed ──
+        try {
+          const recipientSockets = await io.in(`user:${recipientId}`).fetchSockets();
+          if (recipientSockets.length === 0) {
+            const senderName = `${socket.user?.firstName || ''} ${socket.user?.lastName || ''}`.trim() || 'Someone';
+            let preview = (content || '').trim();
+            if (!preview) {
+              if (type === 'image') preview = '📷 Photo';
+              else if (type === 'video') preview = '🎥 Video';
+              else if (type === 'voice') preview = '🎤 Voice message';
+              else preview = 'New message';
+            }
+            const { sendPushToUser } = require('../utils/push');
+            sendPushToUser(recipientId, {
+              title: senderName,
+              body:  preview.slice(0, 140),
+              data:  { kind: 'chat', senderId: userId, messageId: message._id?.toString() },
+              channelId: 'messages',
+            }).catch(() => {});
+          }
+        } catch (e) { console.warn('[push] chat:', e?.message); }
 
         // Confirm to sender
         callback?.({ success: true, message });
@@ -258,22 +286,53 @@ function setupSocket(server) {
 
         const call = new Call({ caller: userId, receiver: receiverId, type });
         await call.save();
-        await call.populate('caller', 'firstName lastName profileImage');
+        await call.populate('caller', 'firstName lastName profileImage avatarEmoji avatarColor');
         await call.populate('receiver', 'firstName lastName profileImage');
 
-        // Notify receiver
-        io.to(`user:${receiverId}`).emit('call:incoming', {
-          callId: call._id.toString(),
-          caller: {
-            _id: socket.user._id,
-            firstName: socket.user.firstName,
-            lastName: socket.user.lastName,
-            profileImage: socket.user.profileImage,
-          },
-          type,
-        });
+        // Determine receiver online state — used by caller UI to show
+        // "Ringing…" (online + delivered) vs "Calling…" (offline / not yet delivered).
+        const receiverSockets = await io.in(`user:${receiverId}`).fetchSockets();
+        const receiverOnline  = receiverSockets.length > 0 || !!receiver.isOnline;
 
-        callback?.({ success: true, callId: call._id.toString() });
+        // Notify receiver if they're connected
+        if (receiverSockets.length > 0) {
+          io.to(`user:${receiverId}`).emit('call:incoming', {
+            callId: call._id.toString(),
+            caller: {
+              _id: socket.user._id,
+              firstName: socket.user.firstName,
+              lastName: socket.user.lastName,
+              profileImage: socket.user.profileImage,
+              avatarEmoji: socket.user.avatarEmoji,
+              avatarColor: socket.user.avatarColor,
+            },
+            type,
+          });
+          // Tell the caller the receiver received the ring
+          socket.emit('call:delivered', { callId: call._id.toString() });
+        } else {
+          // ── Receiver is offline → fire a push so the call screen wakes up ──
+          try {
+            const callerName = `${socket.user?.firstName || ''} ${socket.user?.lastName || ''}`.trim() || 'Someone';
+            const { sendPushToUser } = require('../utils/push');
+            sendPushToUser(receiverId, {
+              title: `${type === 'video' ? '📹 Video' : '📞 Voice'} call`,
+              body:  `${callerName} is calling you…`,
+              data:  { kind: 'call', callId: call._id.toString(), callerId: userId, type },
+              channelId: 'calls',
+              priority: 'high',
+              sound: 'default',
+              ttl: 30,
+            }).catch(() => {});
+          } catch (e) { console.warn('[push] call:', e?.message); }
+        }
+
+        callback?.({
+          success: true,
+          callId: call._id.toString(),
+          receiverOnline,
+          delivered: receiverSockets.length > 0,
+        });
 
         // Auto-miss after 45 seconds (matches client-side timeout)
         setTimeout(async () => {
