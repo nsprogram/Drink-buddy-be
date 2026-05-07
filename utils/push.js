@@ -45,7 +45,11 @@ async function sendPushToUser(userId, { title, body, data = {}, sound = 'default
   try {
     const user = await User.findById(userId).select('pushTokens').lean();
     const tokens = (user?.pushTokens || []).map(t => t.token).filter(isExpoToken);
-    if (!tokens.length) return { ok: true, skipped: 'no tokens' };
+    if (!tokens.length) {
+      console.log('[push] no registered tokens for user', userId);
+      return { ok: true, skipped: 'no tokens' };
+    }
+    console.log('[push] sending to', tokens.length, 'token(s) for user', userId, '→', title);
 
     const messages = tokens.map(to => ({
       to,
@@ -54,12 +58,34 @@ async function sendPushToUser(userId, { title, body, data = {}, sound = 'default
       data,
       sound,
       priority,
+      // Critical for background/closed-app delivery on Android — wakes the device.
+      _displayInForeground: true,
       ...(badge !== undefined ? { badge } : {}),
       ...(channelId ? { channelId } : {}),
       ...(ttl !== undefined ? { ttl } : {}),
     }));
 
-    return await sendBatch(messages);
+    const result = await sendBatch(messages);
+    if (result.ok && result.response?.data) {
+      const tickets = result.response.data;
+      const errs = tickets.filter(t => t.status === 'error');
+      if (errs.length) {
+        console.warn('[push] errored tickets:', JSON.stringify(errs).slice(0, 400));
+        // Auto-prune invalid tokens — Expo returns DeviceNotRegistered for stale ones
+        const dead = errs
+          .map((t, i) => ({ ticket: t, token: tokens[i] }))
+          .filter(x => x.ticket.details?.error === 'DeviceNotRegistered')
+          .map(x => x.token);
+        if (dead.length) {
+          await User.updateOne(
+            { _id: userId },
+            { $pull: { pushTokens: { token: { $in: dead } } } }
+          ).catch(() => {});
+          console.log('[push] pruned', dead.length, 'dead tokens');
+        }
+      }
+    }
+    return result;
   } catch (err) {
     console.warn('[push] sendPushToUser error:', err.message);
     return { ok: false, error: err.message };
