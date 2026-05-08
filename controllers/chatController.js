@@ -242,6 +242,32 @@ class ChatController {
       message.reactions = reactions;
       await message.save();
 
+      // Real-time broadcast — both sender and recipient get the update so
+      // emoji reactions appear instantly on the other device.
+      try {
+        const io = req.app.get('io');
+        if (io) {
+          // Convert Map → plain object for socket transport
+          const reactionsObj = {};
+          for (const [k, v] of reactions.entries()) {
+            reactionsObj[k] = v.map(id => id.toString());
+          }
+          const payload = {
+            messageId: message._id.toString(),
+            reactions: reactionsObj,
+            actorId: currentUserId.toString(),
+          };
+          const senderId = message.sender.toString();
+          const recipientId = message.recipient?.toString();
+          io.to(`user:${senderId}`).emit('chat:reaction', payload);
+          if (recipientId && recipientId !== senderId) {
+            io.to(`user:${recipientId}`).emit('chat:reaction', payload);
+          }
+        }
+      } catch (e) {
+        console.warn('[chat] reaction broadcast failed:', e?.message);
+      }
+
       res.json({ success: true, message: 'Reaction updated successfully', data: message });
     } catch (error) {
       console.error('Add reaction error:', error);
