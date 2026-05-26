@@ -1,0 +1,35 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Trigger Render Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        run: |
+          curl -s --fail-with-body \
+            -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+            | echo "Deploy triggered successfully"
+
+      - name: Wait for deploy to start
+        run: sleep 5
+
+      - name: Health check (retry up to 3 min)
+        run: |
+          for i in $(seq 1 18); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://drink-buddy-b.onrender.com/api/health)
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Backend is healthy!"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "⚠️ Health check timed out (Render free tier takes ~2 min to wake)"
+          exit 0
