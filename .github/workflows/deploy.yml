@@ -11,25 +11,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger Render Deploy Hook
+      - name: Trigger Render Deploy
         run: |
-          curl -s --fail-with-body \
-            -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
-            | echo "Deploy triggered successfully"
+          RESPONSE=$(curl -s -X POST \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "Deploy triggered: $RESPONSE"
+          DEPLOY_ID=$(echo "$RESPONSE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('deploy',{}).get('id','unknown'))" 2>/dev/null || echo "unknown")
+          echo "Deploy ID: $DEPLOY_ID"
 
-      - name: Wait for deploy to start
-        run: sleep 5
-
-      - name: Health check (retry up to 3 min)
+      - name: Wait for deploy to complete
         run: |
-          for i in $(seq 1 18); do
+          echo "Waiting for Render to build and deploy..."
+          sleep 30
+          for i in $(seq 1 24); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://drink-buddy-b.onrender.com/api/health)
-            echo "Attempt $i: HTTP $STATUS"
+            echo "Attempt $i/24: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then
-              echo "✅ Backend is healthy!"
+              echo "✅ Backend is live!"
               exit 0
             fi
-            sleep 10
+            sleep 15
           done
-          echo "⚠️ Health check timed out (Render free tier takes ~2 min to wake)"
+          echo "⚠️ Deploy is still in progress (Render free tier can take ~3 min)"
           exit 0
