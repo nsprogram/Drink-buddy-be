@@ -263,13 +263,11 @@ const RENDER_URL = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL;
 const SELF_PING_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
 function startSelfPing() {
-  if (!RENDER_URL && process.env.NODE_ENV !== 'production') {
-    console.log('⏸️  Self-ping disabled (not production)');
+  if (!RENDER_URL) {
+    console.log('⏸️  Self-ping disabled (no RENDER_EXTERNAL_URL set)');
     return;
   }
-  const pingUrl = RENDER_URL
-    ? `${RENDER_URL}/api/health`
-    : `http://localhost:${PORT}/api/health`;
+  const pingUrl = `${RENDER_URL}/api/health`;
 
   console.log(`🏓 Self-ping enabled: ${pingUrl} every 10 min`);
 
