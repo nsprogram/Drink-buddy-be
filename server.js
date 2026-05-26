@@ -10,6 +10,9 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { setupSocket } = require('./socket');
 
+// Load passport strategies (Google OAuth + JWT)
+require('./config/passport');
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
@@ -166,7 +169,6 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/push',  pushRoutes);
 app.use('/api/chatbot', chatbotRoutes);
-app.use('/api/admin', adminRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/funny-messages', funnyMessageRoutes);
@@ -193,9 +195,9 @@ app.use('/api/vendor/support',       vendorSupportRoutes);
 app.use('/api/vendor/auth/login',    authLimiter);
 app.use('/api/vendor/auth/register', authLimiter);
 
-// Admin API
-app.use('/api/admin', adminRoutes);
+// Admin API (vendor-applications must come before the wildcard adminRoutes)
 app.use('/api/admin/vendor-applications', adminVendorApplicationRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

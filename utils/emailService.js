@@ -236,8 +236,18 @@ const sendVendorResetEmail = async (email, name, otp) => {
   );
 };
 
+/**
+ * Generic email sender used by vendor/admin controllers.
+ * Accepts { to, subject, html } and routes through the same
+ * SMTP → HTTP-API fallback chain used by all other send functions.
+ */
+const sendEmail = async ({ to, subject, html }) => {
+  return sendMail(to, subject, html);
+};
+
 module.exports = {
   generateOTP,
+  sendEmail,
   sendEmailVerification,
   sendLoginOTP,
   sendPasswordResetEmail,
