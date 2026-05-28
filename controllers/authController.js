@@ -219,7 +219,9 @@ class AuthController {
   static async requestLoginOTP(req, res) {
     try {
       const { email } = req.body;
-      const user = await User.findOne({ email });
+      if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
+
+      const user = await User.findOne({ email: email.toLowerCase() });
       if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
       const otp = generateOTP();
@@ -227,9 +229,23 @@ class AuthController {
       await user.save();
 
       const emailSent = await sendLoginOTP(email, user.firstName, otp);
-      console.log(`[Auth] Login OTP for ${email}: ${emailSent ? 'sent' : 'FAILED'}`);
+      console.log(`[Auth] Login OTP for ${email}: ${emailSent ? 'sent' : 'FAILED'} | OTP: ${otp}`);
 
-      res.json({ success: true, message: 'Login OTP sent to your email' });
+      const responseData = { email };
+      if (!emailSent) {
+        // Email delivery failed — surface OTP in response so dev / fallback flow works.
+        // Matches the same pattern used by `register` and `forgotPassword` in this file.
+        responseData.fallbackOtp = otp;
+        responseData.emailDeliveryFailed = true;
+      }
+
+      res.json({
+        success: true,
+        message: emailSent
+          ? 'Login OTP sent to your email.'
+          : 'Email delivery unavailable — your code is shown below.',
+        data: responseData,
+      });
     } catch (error) {
       console.error('Request login OTP error:', error);
       res.status(500).json({ success: false, message: 'Failed to send OTP' });
@@ -287,8 +303,8 @@ class AuthController {
       if (!email || !token || !newPassword) {
         return res.status(400).json({ success: false, message: 'All fields are required' });
       }
-      if (newPassword.length < 6) {
-        return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+      if (newPassword.length < 8) {
+        return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
       }
 
       const user = await User.findOne({

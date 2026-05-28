@@ -91,8 +91,8 @@ function setupSocket(server) {
           createdAt: { $gt: new Date(Date.now() - 60 * 1000) }, // within last 60s
         }).populate('caller', 'firstName lastName profileImage avatarEmoji avatarColor');
 
-        if (pendingCall) {
-          console.log(`[Socket] Delivering pending call to ${userId} from ${pendingCall.caller?.firstName}`);
+        if (pendingCall && pendingCall.caller) {
+          console.log(`[Socket] Delivering pending call to ${userId} from ${pendingCall.caller.firstName}`);
           // Tell the caller the ring is now reaching the receiver — flips "Calling…" → "Ringing…"
           io.to(`user:${pendingCall.caller._id.toString()}`).emit('call:delivered', {
             callId: pendingCall._id.toString(),
@@ -146,8 +146,8 @@ function setupSocket(server) {
 
         const message = new Message(messageData);
         await message.save();
-        await message.populate('sender', 'firstName lastName profileImage');
-        await message.populate('recipient', 'firstName lastName profileImage');
+        await message.populate('sender', 'firstName lastName profileImage avatarEmoji avatarColor');
+        await message.populate('recipient', 'firstName lastName profileImage avatarEmoji avatarColor');
 
         // Send to recipient (in-app)
         io.to(`user:${recipientId}`).emit('chat:receive', message);

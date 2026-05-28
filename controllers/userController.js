@@ -209,7 +209,9 @@ class UserController {
   // Search users
   static async searchUsers(req, res) {
     try {
-      const { q, limit = 20, page = 1 } = req.query;
+      const { q } = req.query;
+      const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
+      const page = Math.max(parseInt(req.query.page) || 1, 1);
 
       if (!q || q.trim().length < 2) {
         return res.status(400).json({ success: false, message: 'Search query must be at least 2 characters' });
@@ -371,8 +373,8 @@ class UserController {
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ success: false, message: 'Both current and new password required' });
       }
-      if (newPassword.length < 6) {
-        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+      if (newPassword.length < 8) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 8 characters' });
       }
       const user = await User.findById(req.user._id).select('+password');
       if (!user) return res.status(404).json({ success: false, message: 'User not found' });

@@ -20,7 +20,7 @@ services:
       - key: JWT_REFRESH_SECRET
         sync: false
       - key: JWT_EXPIRE
-        value: 7d
+        value: 15m
       - key: JWT_REFRESH_EXPIRE
         value: 30d
       - key: EMAIL_USER

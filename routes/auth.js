@@ -22,14 +22,14 @@ router.post('/login-otp', AuthController.requestLoginOTP);
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_failed` }),
-  (req, res) => {
+  async (req, res) => {
     try {
       const tokens = generateTokens(req.user);
       // Store refresh token
       req.user.refreshTokens = req.user.refreshTokens || [];
       if (req.user.refreshTokens.length >= 5) req.user.refreshTokens.shift();
       req.user.refreshTokens.push({ token: tokens.refreshToken, device: req.headers['user-agent'] || 'Unknown', createdAt: new Date() });
-      req.user.save();
+      await req.user.save();
 
       const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?accessToken=${tokens.accessToken}&refreshToken=${tokens.refreshToken}`;
       res.redirect(redirectUrl);
