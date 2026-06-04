@@ -4,7 +4,6 @@ const { protect, adminOnly } = require('../middleware/auth');
 const admin = require('../controllers/adminController');
 const User = require('../models/User');
 const Venue = require('../models/Venue');
-const Vendor = require('../models/Vendor');
 
 // All admin routes require authentication + admin role
 router.use(protect, adminOnly);
@@ -233,15 +232,17 @@ router.post('/bars', async (req, res) => {
   }
 });
 
-// GET /admin/vendors — list vendors for dropdown
+// GET /admin/vendors — list vendors for dropdown (uses mongoose directly)
 router.get('/vendors', async (req, res) => {
   try {
+    const mongoose = require('mongoose');
     const { search } = req.query;
     const query = { applicationStatus: { $in: ['approved', 'active'] } };
     if (search) {
       const r = new RegExp(search, 'i');
       query.$or = [{ businessName: r }, { email: r }];
     }
+    const Vendor = mongoose.model('Vendor');
     const vendors = await Vendor.find(query)
       .select('businessName email phone')
       .sort({ businessName: 1 })
