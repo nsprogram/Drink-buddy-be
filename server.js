@@ -175,7 +175,8 @@ app.use('/api/funny-messages', funnyMessageRoutes);
 app.use('/api/drink-comments', drinkCommentRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/public-vendors', require('./routes/publicVendorRoutes'));
-app.use('/api/bars',           require('./routes/barsRoutes'));
+app.use('/api/bars',            require('./routes/barsRoutes'));
+app.use('/api/alcohol-brands',  require('./routes/publicAlcoholBrandsRoutes'));
 app.use('/api/admin/alcohol-brands', require('./routes/alcoholBrandsRoutes'));
 
 // Vendor API
