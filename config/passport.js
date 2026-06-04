@@ -18,45 +18,47 @@ passport.use(new JwtStrategy({
   }
 }));
 
-// Google OAuth Strategy
-passport.use(new GoogleStrategy({
-  clientID: process.env.GOOGLE_CLIENT_ID,
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: '/api/auth/google/callback'
-}, async (accessToken, refreshToken, profile, done) => {
-  try {
-    let user = await User.findOne({ googleId: profile.id });
-    if (user) {
-      user.lastLogin = new Date();
-      await user.save();
-      return done(null, user);
+// Google OAuth Strategy — only register if credentials are configured
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback'
+  }, async (accessToken, refreshToken, profile, done) => {
+    try {
+      let user = await User.findOne({ googleId: profile.id });
+      if (user) {
+        user.lastLogin = new Date();
+        await user.save();
+        return done(null, user);
+      }
+
+      user = await User.findOne({ email: profile.emails[0].value });
+      if (user) {
+        user.googleId = profile.id;
+        user.isEmailVerified = true;
+        user.lastLogin = new Date();
+        await user.save();
+        return done(null, user);
+      }
+
+      const newUser = new User({
+        googleId: profile.id,
+        firstName: profile.name.givenName,
+        lastName: profile.name.familyName,
+        email: profile.emails[0].value,
+        profileImage: profile.photos[0]?.value,
+        isEmailVerified: true,
+        lastLogin: new Date()
+      });
+
+      await newUser.save();
+      return done(null, newUser);
+    } catch (error) {
+      return done(error, null);
     }
-
-    user = await User.findOne({ email: profile.emails[0].value });
-    if (user) {
-      user.googleId = profile.id;
-      user.isEmailVerified = true;
-      user.lastLogin = new Date();
-      await user.save();
-      return done(null, user);
-    }
-
-    const newUser = new User({
-      googleId: profile.id,
-      firstName: profile.name.givenName,
-      lastName: profile.name.familyName,
-      email: profile.emails[0].value,
-      profileImage: profile.photos[0]?.value,
-      isEmailVerified: true,
-      lastLogin: new Date()
-    });
-
-    await newUser.save();
-    return done(null, newUser);
-  } catch (error) {
-    return done(error, null);
-  }
-}));
+  }));
+}
 
 passport.serializeUser((user, done) => {
   done(null, user.id);
