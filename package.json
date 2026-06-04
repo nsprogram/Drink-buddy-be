@@ -1,6 +1,6 @@
 {
   "name": "drinkbuddy-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "DrinkBuddy Backend API - Node.js/Express/MongoDB",
   "main": "server.js",
   "scripts": {
