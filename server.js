@@ -50,6 +50,7 @@ const vendorTeamRoutes          = require('./routes/vendor/team');
 const vendorNotificationsRoutes = require('./routes/vendor/notifications');
 const vendorSupportRoutes       = require('./routes/vendor/support');
 const funnyMessageRoutes        = require('./routes/funnyMessageRoutes');
+const appConfigRoutes           = require('./routes/appConfigRoutes');
 
 
 // ── Validate required env vars ──
@@ -172,6 +173,7 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/funny-messages', funnyMessageRoutes);
+app.use('/api/app-config',    appConfigRoutes);
 app.use('/api/drink-comments', drinkCommentRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/public-vendors', require('./routes/publicVendorRoutes'));
