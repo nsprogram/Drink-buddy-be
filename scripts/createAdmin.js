@@ -9,8 +9,8 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const User = require('../models/User');
 
 async function createAdmin() {
-  const email = 'admin@drinkbuddy.com';
-  const password = 'Admin@1234';
+  const email = 'Admin@gmail.com';
+  const password = 'Admin123@';
 
   try {
     await mongoose.connect(process.env.MONGODB_URI);
@@ -31,8 +31,8 @@ async function createAdmin() {
         console.log('\n  Admin account already exists.\n');
       }
       console.log('  ┌─────────────────────────────────────┐');
-      console.log('  │  Email:    admin@drinkbuddy.com      │');
-      console.log('  │  Password: Admin@1234                │');
+      console.log('  │  Email:    Admin@gmail.com           │');
+      console.log('  │  Password: Admin123@                 │');
       console.log('  └─────────────────────────────────────┘\n');
       await mongoose.disconnect();
       process.exit(0);
@@ -58,8 +58,8 @@ async function createAdmin() {
 
     console.log('\n  ✅ Admin account created successfully!\n');
     console.log('  ┌─────────────────────────────────────┐');
-    console.log('  │  Email:    admin@drinkbuddy.com      │');
-    console.log('  │  Password: Admin@1234                │');
+    console.log('  │  Email:    Admin@gmail.com           │');
+    console.log('  │  Password: Admin123@                 │');
     console.log('  │  Role:     admin                     │');
     console.log('  └─────────────────────────────────────┘\n');
     console.log('  Login at: http://localhost:3001/#/login\n');

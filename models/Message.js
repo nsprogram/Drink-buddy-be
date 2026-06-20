@@ -10,7 +10,7 @@ const messageSchema = new mongoose.Schema({
     type: String,
     required: function () { return this.type === 'text'; }
   },
-  type: { type: String, enum: ['text', 'image', 'voice', 'video'], default: 'text' },
+  type: { type: String, enum: ['text', 'image', 'voice', 'video', 'call'], default: 'text' },
   imageUri: {
     type: String,
     required: function () { return this.type === 'image'; }
@@ -26,6 +26,10 @@ const messageSchema = new mongoose.Schema({
   },
   videoDuration: { type: Number, default: 0 },
   videoThumbnail: { type: String, default: null },
+  // ── Call history fields (type === 'call') ──
+  callType:     { type: String, enum: ['voice', 'video'], default: null },
+  callDuration: { type: Number, default: 0 },   // seconds
+  callStatus:   { type: String, enum: ['ended', 'missed', 'declined'], default: null },
   replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
   replyText: { type: String, default: null },
   replySender: { type: String, default: null },

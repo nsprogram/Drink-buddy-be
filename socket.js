@@ -365,7 +365,9 @@ function setupSocket(server) {
         await call.save();
 
         const callerId = call.caller.toString();
-        io.to(`user:${callerId}`).emit('call:accepted', { callId });
+        // Include userId (the acceptor) so the caller's startCall() has the
+        // correct targetUserId without falling back to callData.receiverId.
+        io.to(`user:${callerId}`).emit('call:accepted', { callId, userId });
 
         callback?.({ success: true });
       } catch (err) {
@@ -400,6 +402,13 @@ function setupSocket(server) {
       try {
         const call = await Call.findById(callId);
         if (!call) return callback?.({ error: 'Call not found' });
+
+        // Idempotent — if already ended/declined/missed, just ack without
+        // re-emitting call:ended (which would cause a double-dismiss loop on
+        // the client when the remote side's cleanup echoes call:end back).
+        if (call.status === 'ended' || call.status === 'declined' || call.status === 'missed') {
+          return callback?.({ success: true, duration: call.duration });
+        }
 
         call.status = 'ended';
         call.endedAt = new Date();

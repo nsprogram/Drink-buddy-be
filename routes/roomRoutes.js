@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect } = require('../middleware/auth');
 const Room = require('../models/Room');
 const { sendSessionCompleteNotification } = require('../utils/notifications');
+const { uploadCover } = require('../config/cloudinary');
 
 const populateRoom = (query) => query
   .populate('creator', 'firstName lastName profileImage')
@@ -13,7 +14,7 @@ const populateRoom = (query) => query
 // Create room
 router.post('/create', protect, async (req, res) => {
   try {
-    const { name, size, isPrivate, description, category } = req.body;
+    const { name, size, isPrivate, description, category, coverImage, isVoiceRoom } = req.body;
     if (!name || !size) {
       return res.status(400).json({ success: false, message: 'Name and size are required' });
     }
@@ -38,6 +39,8 @@ router.post('/create', protect, async (req, res) => {
       members: [{ user: req.user._id, role: 'host' }],
       description: description?.trim() || '',
       category: category || 'other',
+      coverImage: coverImage || '',
+      isVoiceRoom: !!isVoiceRoom,
     });
     const populated = await populateRoom(Room.findById(room._id));
     res.status(201).json({ success: true, message: 'Room created', data: { room: populated } });
@@ -45,6 +48,17 @@ router.post('/create', protect, async (req, res) => {
     console.error('Create room error:', error);
     res.status(500).json({ success: false, message: 'Failed to create room' });
   }
+});
+
+// Upload room cover image
+router.post('/upload-cover', protect, async (req, res) => {
+  const upload = uploadCover.single('coverImage');
+  upload(req, res, async (err) => {
+    if (err) return res.status(400).json({ success: false, message: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    const url = req.file.path || req.file.secure_url;
+    return res.json({ success: true, url });
+  });
 });
 
 // Get all active rooms (public + user's private)

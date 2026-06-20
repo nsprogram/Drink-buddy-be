@@ -70,7 +70,7 @@ router.post('/:drinkId', protect, async (req, res) => {
       drinkName,
       drinkImage,
       user: req.user._id,
-      authorName: req.user.name || req.user.username || req.user.email?.split('@')[0] || 'Guest',
+      authorName: [req.user.firstName, req.user.lastName].filter(Boolean).join(' ') || req.user.email?.split('@')[0] || 'Guest',
       authorAvatar: req.user.profileImage || req.user.avatar,
       authorEmoji: authorEmoji || '🥂',
       authorColor: authorColor || '#FF9F43',

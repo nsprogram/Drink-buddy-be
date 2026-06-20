@@ -31,7 +31,13 @@ class ChatController {
 
   static async sendMessage(req, res) {
     try {
-      const { recipientId, content, type = 'text', imageUri, videoUri, videoDuration, replyData, voiceUri, voiceDuration } = req.body;
+      const {
+        recipientId, content, type = 'text',
+        imageUri, videoUri, videoDuration,
+        replyData, voiceUri, voiceDuration,
+        // Call history fields
+        callType, callDuration, callStatus,
+      } = req.body;
       const senderId = req.user._id;
 
       const recipient = await User.findById(recipientId);
@@ -52,7 +58,12 @@ class ChatController {
 
       const messageData = { sender: senderId, recipient: recipientId, content: content?.trim() || '', type };
 
-      if (type === 'image' && imageUri) {
+      if (type === 'call') {
+        // Call history record — no media URI needed, just metadata
+        messageData.callType     = callType   || 'voice';
+        messageData.callDuration = parseInt(callDuration) || 0;
+        messageData.callStatus   = callStatus || 'ended';
+      } else if (type === 'image' && imageUri) {
         messageData.imageUri = imageUri;
       } else if (type === 'video' && videoUri) {
         messageData.videoUri = videoUri;

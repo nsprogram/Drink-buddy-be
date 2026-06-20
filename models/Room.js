@@ -61,6 +61,8 @@ const roomSchema = new mongoose.Schema({
   maxMembers: { type: Number, default: 6 },
   description: { type: String, default: '', maxlength: 200 },
   category: { type: String, enum: ['party', 'chill', 'tasting', 'dating', 'other'], default: 'other' },
+  coverImage: { type: String, default: '' },
+  isVoiceRoom: { type: Boolean, default: false },
 }, { timestamps: true });
 
 // Auto-generate join code before save
