@@ -158,6 +158,8 @@ mongoose.connection.on('disconnected', () => {
 connectDB();
 
 // Routes
+// ── app-config FIRST so it can never be shadowed ──
+app.use('/api/app-config',    appConfigRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/profile', profileRoutes);
@@ -173,7 +175,6 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/funny-messages', funnyMessageRoutes);
-app.use('/api/app-config',    appConfigRoutes);
 app.use('/api/drink-comments', drinkCommentRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/public-vendors', require('./routes/publicVendorRoutes'));
@@ -234,6 +235,8 @@ app.get('/api/test', (req, res) => {
     message: 'DrinkBuddy Backend is Running!',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
+    version: '2.1.0',
+    appConfigRoute: 'enabled',
     database: {
       status: dbStateMap[dbState] || 'unknown',
       host: mongoose.connection.host || 'unknown',
